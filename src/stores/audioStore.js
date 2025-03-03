@@ -2,76 +2,83 @@ import { defineStore } from 'pinia';
 
 export const useAudioStore = defineStore('audio', {
   state: () => ({
+    // オーディオ関連
     audioFile: null,
-    isPlaying: false,
-    currentTime: 0,
+    audioBuffer: null,
+    audioContext: null,
+    audioSource: null,
+    analyser: null,
+    gainNode: null,
     duration: 0,
+    currentTime: 0,
+    isPlaying: false,
+    volume: 1.0,
     
-    // ビジュアライザー設定
+    // ビジュアライザー関連
+    visualizer: null, // ビジュアライザーオブジェクトへの参照を保持
     visualizerSettings: {
-      type: 'bars', // 'bars', 'circle', 'wave', 'waveform', 'particles'
+      type: 'bars',
       fftSize: 2048,
       smoothingTimeConstant: 0.8,
-      sensitivity: 1.5,
+      sensitivity: 1.0,
       
-      // バー設定
+      // バータイプの設定
       bars: {
         count: 64,
         width: 10,
         spacing: 2,
-        minHeight: 3,
+        minHeight: 2,
         roundedTop: true,
-        horizontalAlign: 'center', // 'left', 'center', 'right'
-        verticalAlign: 'bottom',   // 'top', 'middle', 'bottom'
+        horizontalAlign: 'center',
+        verticalAlign: 'bottom'
       },
       
-      // 円形設定 - 感度調整済み
+      // 円形タイプの設定
       circle: {
-        radius: 150,
+        radius: 100,
         centerX: 0.5,
         centerY: 0.5,
         rotation: 0,
-        mirrorMode: false,
+        mirrorMode: false
       },
       
-      // 波形設定
+      // 波形タイプの設定
       wave: {
         points: 100,
         amplitude: 50,
         frequency: 1,
-        smoothing: 0.5,
+        smoothing: 0.5
       },
       
       // 色設定
       color: {
-        type: 'solid', // 'solid', 'gradient', 'frequency'
+        type: 'solid',
         solid: '#3498DB',
         gradient: {
           colors: ['#3498DB', '#8E44AD'],
-          angle: 90,
+          angle: 90
         },
         frequencyColors: [
-          { freq: 20, color: '#0066FF' },    // 低音
-          { freq: 300, color: '#00CCFF' },  // 中低音
-          { freq: 2000, color: '#00FFCC' }, // 中音
-          { freq: 10000, color: '#FFCC00' }, // 高音
-          { freq: 20000, color: '#FF3300' }  // 超高音
+          { freq: 20, color: '#0000FF' },
+          { freq: 200, color: '#00FF00' },
+          { freq: 500, color: '#FFFF00' },
+          { freq: 2000, color: '#FF0000' },
+          { freq: 20000, color: '#FF00FF' }
         ]
       }
     },
     
     // 背景設定
     background: {
-      type: 'color', // 'color', 'gradient', 'image'
+      type: 'gradient', // color, gradient, image
       color: '#000000',
       gradient: {
-        colors: ['#16213E', '#0F3460'],
-        angle: 45
+        colors: ['#16213E', '#0F3460', '#533483'],
+        angle: 180
       },
       image: null,
       blur: 0,
-      opacity: 1,
-      _imageCache: null // 内部用、画像キャッシュ
+      opacity: 1
     },
     
     // イコライザー設定
@@ -87,53 +94,48 @@ export const useAudioStore = defineStore('audio', {
       { frequency: 8000, gain: 0 },
       { frequency: 16000, gain: 0 }
     ],
-    applyEqToAudio: false,
+    
+    // イコライザーが音声に適用されるか
+    applyEqToAudio: true,
     
     // エクスポート設定
     exportSettings: {
-      resolution: '1080p',
+      resolution: '1080p', // 720p, 1080p, 4k
       fps: 30,
-      format: 'mp4',
-      videoBitrate: '8000k',
-      audioBitrate: '320k',
-      duration: null // null は全体をエクスポート
+      format: 'mp4', // mp4, webm, gif
+      videoBitrate: '8000k', // 4000k, 8000k, 16000k
+      audioBitrate: '256k', // 128k, 256k, 320k
+      duration: null // null = 全体
     }
   }),
   
   actions: {
-    // イコライザーバンドをリセット
+    setAudioFile(file) {
+      this.audioFile = file;
+    },
+    
     resetEqualizerBands() {
       this.equalizerBands.forEach(band => {
         band.gain = 0;
       });
     },
     
-    // エクスポート設定を更新
-    updateExportSettings(settings) {
-      this.exportSettings = {
-        ...this.exportSettings,
-        ...settings
-      };
-    },
-    
-    // ビジュアライザー設定を更新
-    updateVisualizerSettings(settings) {
-      this.visualizerSettings = {
-        ...this.visualizerSettings,
-        ...settings
-      };
+    // ストア内のオーディオメタデータを更新
+    updateAudioMetadata(metadata) {
+      if (metadata) {
+        this.duration = metadata.duration || 0;
+      }
     }
   },
   
-  getters: {
-    // エクスポート解像度を取得
-    exportDimensions(state) {
-      switch(state.exportSettings.resolution) {
-        case '720p': return { width: 1280, height: 720 };
-        case '1080p': return { width: 1920, height: 1080 };
-        case '4k': return { width: 3840, height: 2160 };
-        default: return { width: 1920, height: 1080 };
+  persist: {
+    enabled: true,
+    strategies: [
+      {
+        key: 'aves-audio-settings',
+        storage: localStorage,
+        paths: ['visualizerSettings', 'background', 'equalizerBands', 'applyEqToAudio', 'exportSettings']
       }
-    }
+    ]
   }
 });

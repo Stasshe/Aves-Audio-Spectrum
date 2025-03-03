@@ -1,85 +1,129 @@
 <template>
   <div class="card">
-    <h2 class="text-xl font-bold mb-4">オーディオファイルをアップロード</h2>
+    <h2 class="text-xl font-bold mb-4">オーディオをアップロード</h2>
     
-    <div 
-      class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
-      @dragover.prevent="dragover = true"
-      @dragleave.prevent="dragover = false"
-      @drop.prevent="onDrop"
-      :class="{'bg-blue-50 border-blue-300': dragover}"
-    >
+    <div v-if="!audioStore.audioFile" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
       <input
         ref="fileInput"
         type="file"
         accept="*"
         class="hidden"
-        @change="onFileSelect"
+        @change="handleAudioSelect"
       />
-      
-      <div class="flex flex-col items-center">
-        <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
-        </svg>
-        
-        <p class="text-gray-600 mb-4">
-          ドラッグ＆ドロップするか、クリックしてオーディオファイルを選択してください
-        </p>
-        
-        <button 
-          @click="$refs.fileInput.click()" 
-          class="btn btn-primary"
-        >
-          オーディオファイルを選択
-        </button>
-      </div>
+      <p class="text-gray-500 mb-4">オーディオファイルをドラッグ＆ドロップするか、クリックしてアップロード</p>
+      <button
+        @click="$refs.fileInput.click()"
+        class="btn btn-primary"
+      >
+        ファイルを選択
+      </button>
     </div>
     
-    <div class="mt-4 text-sm text-gray-600">
-      <p>サポートされている形式: MP3, WAV, AAC, OGG, FLAC</p>
-      <p>最大ファイルサイズ: 100MB</p>
+    <div v-else class="flex justify-between items-center">
+      <div>
+        <p class="font-medium">{{ audioStore.audioFile.name }}</p>
+        <p class="text-sm text-gray-500">{{ formatFileSize(audioStore.audioFile.size) }}</p>
+      </div>
+      <button
+        @click="clearAudioFile"
+        class="btn btn-outline-danger"
+      >
+        削除
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useAudioStore } from '@/stores/audioStore';
 
 const audioStore = useAudioStore();
-const dragover = ref(false);
 const fileInput = ref(null);
+const dropZone = ref(null);
 
-const onFileSelect = (event) => {
-  const files = event.target.files;
-  if (files.length > 0) {
-    handleAudioFile(files[0]);
+// ファイルサイズのフォーマット
+const formatFileSize = (bytes) => {
+  if (bytes < 1024) return bytes + ' B';
+  else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  else return (bytes / 1048576).toFixed(1) + ' MB';
+};
+
+// オーディオファイルが選択された時の処理
+const handleAudioSelect = (e) => {
+  const files = e.target.files || e.dataTransfer.files;
+  if (files && files.length > 0) {
+    const file = files[0];
+    
+    // ファイルのMIMEタイプをチェック
+    if (file.type.startsWith('audio/') || isSupportedFormat(file)) {
+      audioStore.setAudioFile(file);
+    } else {
+      alert('サポートされていないファイル形式です。音声ファイルを選択してください。');
+    }
+  }
+  
+  // ファイル選択をリセット（同じファイルを再選択できるようにする）
+  if (fileInput.value) {
+    fileInput.value.value = '';
   }
 };
 
-const onDrop = (event) => {
-  dragover.value = false;
-  const files = event.dataTransfer.files;
-  
-  if (files.length > 0) {
-    handleAudioFile(files[0]);
-  }
+// オーディオファイルをクリア
+const clearAudioFile = () => {
+  audioStore.setAudioFile(null);
 };
 
-const handleAudioFile = (file) => {
-  // ファイルサイズチェック (100MB)
-  if (file.size > 100 * 1024 * 1024) {
-    alert('ファイルサイズは100MB以下にしてください');
-    return;
-  }
-  
-  // ファイル形式チェック
-  if (!file.type.startsWith('audio/')) {
-    alert('オーディオファイルを選択してください');
-    return;
-  }
-  
-  // ストアにファイルを設定
-  audioStore.audioFile = file;
+// ファイル形式のサポートチェック（拡張子ベース）
+const isSupportedFormat = (file) => {
+  const supportedExtensions = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a'];
+  const fileName = file.name.toLowerCase();
+  return supportedExtensions.some(ext => fileName.endsWith(ext));
 };
+
+// ドラッグ＆ドロップの処理を設定
+onMounted(() => {
+  const container = document.querySelector('.card');
+  if (!container) return;
+  
+  // ブラウザのデフォルト動作を防止
+  const preventDefault = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  
+  // ドロップゾーンのスタイル変更
+  const highlight = () => {
+    container.classList.add('border-primary');
+  };
+  
+  const unhighlight = () => {
+    container.classList.remove('border-primary');
+  };
+  
+  // ファイルをドロップした時の処理
+  const handleDrop = (e) => {
+    preventDefault(e);
+    unhighlight();
+    handleAudioSelect(e);
+  };
+  
+  // イベントリスナーを登録
+  container.addEventListener('dragenter', (e) => {
+    preventDefault(e);
+    highlight();
+  });
+  
+  container.addEventListener('dragover', (e) => {
+    preventDefault(e);
+    highlight();
+  });
+  
+  container.addEventListener('dragleave', (e) => {
+    preventDefault(e);
+    unhighlight();
+  });
+  
+  container.addEventListener('drop', handleDrop);
+});
 </script>

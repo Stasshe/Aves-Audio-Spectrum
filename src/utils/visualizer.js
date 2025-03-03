@@ -413,7 +413,7 @@ function drawWaveVisualizer(ctx, width, height, dataArray, settings, background)
     if (color.type === 'frequency') {
       // この帯域の中央周波数を概算 (20Hz - 20kHz の対数スケール)
       const frequencyRange = 20 * Math.pow(1000, i / points);
-      ctx.strokeStyle = colorUtils.getFrequencyColor(frequencyRange, color.frequencyColors);
+      ctx.strokeStyle = colorUtils.getFrequencyColor(frequencyRange, settings.color.frequencyColors);
     }
     
     ctx.lineTo(x, sineY);
@@ -602,35 +602,109 @@ export function createVisualizer(canvas, analyser, audioStore) {
   // リサイズイベントリスナー
   window.addEventListener('resize', resizeCanvas);
   
+  // 設定のスケールを調整するヘルパー関数
+  const scaleVisualizerSettings = (settings, targetWidth, targetHeight) => {
+    // オリジナル設定をディープコピー
+    const scaledSettings = JSON.parse(JSON.stringify(settings));
+    
+    // リファレンス解像度（プレビューキャンバスの典型的なサイズ）
+    const refWidth = 800;
+    const refHeight = 450;
+    
+    // スケール係数を計算
+    const widthScale = targetWidth / refWidth;
+    const heightScale = targetHeight / refHeight;
+    
+    // 共通の設定をスケーリング
+    scaledSettings.sensitivity = settings.sensitivity; // 感度はスケールしない
+    scaledSettings.smoothingTimeConstant = settings.smoothingTimeConstant; // スケールしない
+    
+    // タイプ別の設定をスケーリング
+    if (settings.type === 'bars') {
+      // バー設定が存在することを確認
+      if (scaledSettings.bars) {
+        scaledSettings.bars.width = Math.max(1, Math.round(settings.bars.width * widthScale));
+        scaledSettings.bars.spacing = Math.max(0, Math.round(settings.bars.spacing * widthScale));
+        scaledSettings.bars.minHeight = Math.max(0, Math.round(settings.bars.minHeight * heightScale));
+      }
+    }
+    else if (settings.type === 'circle') {
+      // 円形設定が存在することを確認
+      if (scaledSettings.circle) {
+        scaledSettings.circle.radius = Math.max(1, Math.round(settings.circle.radius * Math.min(widthScale, heightScale)));
+      }
+    }
+    else if (settings.type === 'wave') {
+      // 波形設定が存在することを確認
+      if (scaledSettings.wave) {
+        scaledSettings.wave.amplitude = Math.max(1, Math.round(settings.wave.amplitude * heightScale));
+      }
+    }
+    
+    return scaledSettings;
+  };
+
   // ビジュアライザー描画関数
-  const draw = () => {
-    const { visualizerSettings, background } = audioStore;
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // 解析データの取得
-    analyser.getByteFrequencyData(dataArray);
-    
-    // 背景の描画
-    drawBackground(ctx, width, height, background);
-    
-    // 選択されたタイプに基づいてビジュアライザーを描画
-    switch (visualizerSettings.type) {
-      case 'bars':
-        drawBarsVisualizer(ctx, width, height, dataArray, visualizerSettings, background);
-        break;
-      case 'circle':
-        drawCircleVisualizer(ctx, width, height, dataArray, visualizerSettings, background);
-        break;
-      case 'wave':
-        drawWaveVisualizer(ctx, width, height, dataArray, visualizerSettings, background);
-        break;
-      case 'waveform':
-        drawWaveformVisualizer(ctx, width, height, dataArray, visualizerSettings, background);
-        break;
-      case 'particles':
-        drawParticlesVisualizer(ctx, width, height, dataArray, visualizerSettings, background);
-        break;
+  const draw = (targetWidth = null, targetHeight = null, forExport = false, externalDataArray = null) => {
+    try {
+      const { visualizerSettings, background } = audioStore;
+      
+      // 描画先のキャンバスサイズを決定
+      const width = targetWidth || canvas.width || 800;
+      const height = targetHeight || canvas.height || 450;
+      
+      // 一時キャンバスを使用（エクスポート時）
+      let drawCtx = ctx;
+      let tempCanvas = null;
+      
+      if (forExport) {
+        tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        drawCtx = tempCanvas.getContext('2d');
+      }
+      
+      // 設定をスケーリング
+      const scaledSettings = scaleVisualizerSettings(visualizerSettings, width, height);
+      
+      // 解析データの取得（エクスポート時は外部データを使用）
+      const usedDataArray = externalDataArray || dataArray;
+      
+      if (!externalDataArray) {
+        analyser.getByteFrequencyData(usedDataArray);
+      }
+      
+      // 背景の描画
+      drawBackground(drawCtx, width, height, background);
+      
+      // 選択されたタイプに基づいてビジュアライザーを描画
+      switch (scaledSettings.type) {
+        case 'bars':
+          drawBarsVisualizer(drawCtx, width, height, usedDataArray, scaledSettings, background);
+          break;
+        case 'circle':
+          drawCircleVisualizer(drawCtx, width, height, usedDataArray, scaledSettings, background);
+          break;
+        case 'wave':
+          drawWaveVisualizer(drawCtx, width, height, usedDataArray, scaledSettings, background);
+          break;
+        case 'waveform':
+          drawWaveformVisualizer(drawCtx, width, height, usedDataArray, scaledSettings, background);
+          break;
+        case 'particles':
+          drawParticlesVisualizer(drawCtx, width, height, usedDataArray, scaledSettings, background);
+          break;
+      }
+      
+      // エクスポート用に一時キャンバスを返す
+      if (forExport && tempCanvas) {
+        return tempCanvas;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('ビジュアライザー描画エラー:', error);
+      return null;
     }
   };
   
@@ -648,9 +722,22 @@ export function createVisualizer(canvas, analyser, audioStore) {
     window.removeEventListener('resize', resizeCanvas);
   };
   
+  // analyser設定の取得関数を追加
+  const getFftSize = () => {
+    return analyser.fftSize;
+  };
+  
+  // スムージング定数の取得関数を追加
+  const getSmoothingConstant = () => {
+    return analyser.smoothingTimeConstant;
+  };
+  
   return {
     draw,
     updateSettings,
-    destroy
+    destroy,
+    scaleVisualizerSettings,
+    getFftSize,
+    getSmoothingConstant
   };
 }

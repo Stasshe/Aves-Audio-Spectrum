@@ -31,21 +31,6 @@
     </div>
     
     <div class="mb-4">
-      <label class="block text-sm font-medium mb-1">ビデオ形式</label>
-      <div class="grid grid-cols-3 gap-2">
-        <button 
-          v-for="format in videoFormats" 
-          :key="format.id"
-          @click="exportSettings.format = format.id"
-          class="btn text-xs p-1" 
-          :class="exportSettings.format === format.id ? 'btn-primary' : 'btn-secondary'"
-        >
-          {{ format.name }}
-        </button>
-      </div>
-    </div>
-    
-    <div class="mb-4">
       <label class="block text-sm font-medium mb-1">ビデオ品質</label>
       <div class="grid grid-cols-3 gap-2">
         <button 
@@ -54,21 +39,6 @@
           @click="exportSettings.videoBitrate = quality.bitrate"
           class="btn text-xs p-1" 
           :class="exportSettings.videoBitrate === quality.bitrate ? 'btn-primary' : 'btn-secondary'"
-        >
-          {{ quality.name }}
-        </button>
-      </div>
-    </div>
-    
-    <div class="mb-4">
-      <label class="block text-sm font-medium mb-1">音声品質</label>
-      <div class="grid grid-cols-3 gap-2">
-        <button 
-          v-for="quality in audioQualities" 
-          :key="quality.bitrate"
-          @click="exportSettings.audioBitrate = quality.bitrate"
-          class="btn text-xs p-1" 
-          :class="exportSettings.audioBitrate === quality.bitrate ? 'btn-primary' : 'btn-secondary'"
         >
           {{ quality.name }}
         </button>
@@ -107,9 +77,10 @@
     
     <div class="mb-4 p-3 bg-gray-100 rounded-lg">
       <div class="text-xs text-gray-600">
-        <p class="mb-1"><span class="font-medium">注意:</span> 現在の実装ではスクリーンショットのみ保存できます</p>
         <p class="mb-1"><span class="font-medium">出力サイズ:</span> {{ formatResolution() }}</p>
-        <p><span class="font-medium">エクスポート形式:</span> {{ exportSettings.format.toUpperCase() }}</p>
+        <p class="mb-1"><span class="font-medium">ビデオ品質:</span> {{ getQualityLabel(exportSettings.videoBitrate) }}</p>
+        <p class="mb-1"><span class="font-medium">推定ファイルサイズ:</span> {{ estimatedFileSize }}</p>
+        <p class="mb-2"><span class="font-medium">注意:</span> ブラウザによってサポートされるフォーマットが異なります。WebMが自動的に選択されます。</p>
       </div>
     </div>
   </div>
@@ -133,25 +104,11 @@ const resolutions = [
 // フレームレート設定
 const frameRates = [24, 30, 60];
 
-// ビデオ形式
-const videoFormats = [
-  { id: 'mp4', name: 'MP4' },
-  { id: 'webm', name: 'WebM' },
-  { id: 'gif', name: 'GIF' }
-];
-
 // ビデオ品質
 const videoQualities = [
   { name: '低', bitrate: '4000k' },
   { name: '中', bitrate: '8000k' },
   { name: '高', bitrate: '16000k' }
-];
-
-// 音声品質
-const audioQualities = [
-  { name: '低', bitrate: '128k' },
-  { name: '中', bitrate: '256k' },
-  { name: '高', bitrate: '320k' }
 ];
 
 // カスタム時間を設定
@@ -170,6 +127,16 @@ const setCustomDuration = () => {
 const formatResolution = () => {
   const res = resolutions.find(r => r.id === exportSettings.value.resolution);
   return `${res.width} × ${res.height}`;
+};
+
+// 品質ラベルの取得
+const getQualityLabel = (bitrate) => {
+  switch(bitrate) {
+    case '4000k': return '低';
+    case '8000k': return '中';
+    case '16000k': return '高';
+    default: return '中';
+  }
 };
 
 // ファイルサイズの推定

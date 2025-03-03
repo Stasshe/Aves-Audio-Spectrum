@@ -1,13 +1,24 @@
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import App from './App.vue'
-import router from './router'
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import piniaPersist from 'pinia-plugin-persist';
+import App from './App.vue';
+import './assets/style.css';
 
-import './assets/main.css'
+// Pinia ストアの作成と永続化プラグインの適用
+const pinia = createPinia();
+pinia.use(piniaPersist);
 
-const app = createApp(App)
+// アプリケーションの作成
+const app = createApp(App);
 
-app.use(createPinia())
-app.use(router)
+// プラグインのインストール
+app.use(pinia);
 
-app.mount('#app')
+// グローバルエラーハンドラー
+app.config.errorHandler = (err, vm, info) => {
+  console.error('Vue Error:', err);
+  console.error('Error Info:', info);
+};
+
+// アプリケーションのマウント
+app.mount('#app');
