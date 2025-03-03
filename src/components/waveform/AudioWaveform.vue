@@ -6,7 +6,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 import { useAudioStore } from '@/stores/audioStore';
 
 const props = defineProps({
@@ -23,8 +23,10 @@ const waveformData = ref([]);
 const isRendering = ref(false);
 
 const playheadPosition = computed(() => {
-  if (!audioStore.duration) return 0;
-  return (audioStore.currentTime / audioStore.duration) * 100;
+  if (!audioStore.audioBuffer || audioStore.duration <= 0) return 0;
+  const position = audioStore.currentTime / audioStore.duration;
+  // 有効な範囲内に制限（NaNや無限大を防ぐ）
+  return isNaN(position) || !isFinite(position) ? 0 : Math.max(0, Math.min(position, 1)) * 100;
 });
 
 // 波形データを生成する関数
@@ -37,12 +39,13 @@ const generateWaveformData = async () => {
     const audioBuffer = audioStore.audioBuffer;
     const channelData = audioBuffer.getChannelData(0); // 左チャンネルを使用
     const samples = 200; // 表示するサンプル数
-    const blockSize = Math.floor(channelData.length / samples);
+    const blockSize = Math.floor(channelData.length / samples) || 1; // 0で割るのを防ぐ
     const waveform = [];
     
+    // 波形データの計算
     for (let i = 0; i < samples; i++) {
       let start = i * blockSize;
-      let end = start + blockSize;
+      let end = Math.min(start + blockSize, channelData.length);
       let max = 0;
       
       for (let j = start; j < end; j++) {
@@ -52,7 +55,8 @@ const generateWaveformData = async () => {
         }
       }
       
-      waveform.push(max);
+      // NaNや無限大を防ぐ
+      waveform.push(isNaN(max) || !isFinite(max) ? 0 : max);
     }
     
     waveformData.value = waveform;
@@ -139,25 +143,22 @@ watch(() => audioStore.audioBuffer, async (newBuffer) => {
 
 // 波形クリックで再生位置を変更する
 const handleWaveformClick = (event) => {
-  if (!audioStore.audioBuffer) return;
+  if (!audioStore.audioBuffer || !audioStore.duration) return;
   
-  const canvas = waveformCanvas.value;
-  const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const position = x / rect.width;
-  
-  audioStore.currentTime = position * audioStore.duration;
-  
-  // 再生中なら一旦停止してから再開
-  if (audioStore.isPlaying) {
-    const wasPlaying = true;
-    audioStore.pauseAudio();
+  try {
+    const canvas = waveformCanvas.value;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const position = x / rect.width;
     
-    setTimeout(() => {
-      if (wasPlaying) {
-        audioStore.playAudio();
-      }
-    }, 50);
+    // 範囲チェックして値を制限
+    const positionValue = Math.max(0, Math.min(position, 1));
+    const newTime = positionValue * audioStore.duration;
+    
+    // 再生位置を変更するstore関数を使用
+    audioStore.seekAudio(newTime);
+  } catch (error) {
+    console.error('波形クリックエラー:', error);
   }
 };
 
@@ -177,6 +178,17 @@ onMounted(() => {
   if (waveformCanvas.value) {
     waveformCanvas.value.addEventListener('click', handleWaveformClick);
   }
+  
+  // クリーンアップ関数を定義
+  onBeforeUnmount(() => {
+    // ウィンドウリサイズイベントの解除
+    window.removeEventListener('resize', resizeCanvas);
+    
+    // 波形クリックイベントの解除
+    if (waveformCanvas.value) {
+      waveformCanvas.value.removeEventListener('click', handleWaveformClick);
+    }
+  });
 });
 </script>
 
@@ -194,12 +206,15 @@ onMounted(() => {
   width: 100%;
 }
 
+/* プレイヘッドのスタイルを改善 */
 .playhead {
   position: absolute;
   top: 0;
   height: 100%;
   width: 2px;
   background-color: #ff5722;
+  box-shadow: 0 0 4px rgba(255, 87, 34, 0.7);
   pointer-events: none;
+  transition: left 0.1s linear;
 }
 </style>

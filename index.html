@@ -2,7 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/icon.svg">
+    <link rel="icon" href="/favicon.png">
     <style src="/src/reset.css" type="stylesheet"></style>
     <style src="/src/style.css" type="stylesheet"></style>
     <style src="/src/main.css" type="stylesheet"></style>
@@ -15,6 +15,14 @@
     <script>
       eruda.init();
     </script>
+    
+    <!-- iOSでのオーディオ動作を改善するメタタグ -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    
+    <!-- 外部リソースのプリロード -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
   </head>
   <body>
     <div id="app"></div>
