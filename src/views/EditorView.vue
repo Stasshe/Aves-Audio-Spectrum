@@ -75,6 +75,21 @@
       </div>
     </div>
   </div>
+  
+  <!-- エクスポートモーダル -->
+  <div v-if="showExportModal" class="modal-overlay">
+    <div class="modal-content bg-gray-800 p-6 rounded-lg max-w-md w-full">
+      <h2 class="text-xl font-bold mb-4">エクスポート</h2>
+      
+      <ExportSettings />
+      
+      <div class="flex justify-end mt-4">
+        <button @click="showExportModal = false" class="btn btn-secondary">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -383,4 +398,7 @@ onUnmounted(() => {
 
 // audioFile変更時のリスナー
 watch(() => audioStore.audioFile, setupAudio);
+
+// エクスポートモーダル
+const showExportModal = ref(false);
 </script>
