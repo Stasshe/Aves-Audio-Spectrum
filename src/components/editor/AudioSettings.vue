@@ -32,6 +32,11 @@
       </div>
     </div>
     
+    <!-- 波形表示コンポーネント -->
+    <div class="mb-2" v-if="audioFile">
+      <AudioWaveform :height="80" />
+    </div>
+    
     <div class="mb-4" v-if="audioFile">
       <label class="block text-sm font-medium mb-1">再生コントロール</label>
       <div class="flex gap-2">
@@ -90,24 +95,49 @@
         </button>
       </div>
       
-      <div class="grid grid-cols-5 gap-2">
+      <!-- 改善されたイコライザー -->
+      <div class="equalizer-container">
         <div
           v-for="(band, index) in equalizerBands"
           :key="index"
-          class="flex flex-col items-center"
+          class="equalizer-band"
         >
-          <input
-            type="range"
-            class="h-24 rotate-270"
-            min="-12"
-            max="12"
-            step="0.1"
-            v-model.number="band.gain"
-            @input="updateEqualizer"
-            orient="vertical"
-          />
-          <span class="text-xs mt-1">{{ formatFrequency(band.frequency) }}</span>
-          <span class="text-xs">{{ band.gain.toFixed(1) }}dB</span>
+          <span class="gain-value" :class="getBandClass(band.gain)">
+            {{ band.gain > 0 ? '+' : '' }}{{ band.gain.toFixed(1) }}
+          </span>
+          <div class="slider-container">
+            <input
+              type="range"
+              class="vertical-slider"
+              min="-12"
+              max="12"
+              step="0.5"
+              v-model.number="band.gain"
+              @input="updateEqualizer"
+            />
+            <div class="center-line"></div>
+          </div>
+          <span class="frequency-label">{{ formatFrequency(band.frequency) }}</span>
+        </div>
+      </div>
+      
+      <div class="flex items-center mt-2">
+        <input type="checkbox" v-model="audioStore.applyEqToAudio" id="applyEq" class="mr-2" />
+        <label for="applyEq" class="text-sm">音声にも適用する</label>
+      </div>
+      
+      <!-- イコライザープリセット -->
+      <div class="mt-4">
+        <h4 class="text-sm font-medium mb-2">プリセット</h4>
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            v-for="(preset, index) in eqPresets"
+            :key="index"
+            @click="applyEqPreset(preset.gains)"
+            class="btn btn-sm btn-secondary"
+          >
+            {{ preset.name }}
+          </button>
         </div>
       </div>
     </div>
@@ -117,6 +147,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useAudioStore } from '@/stores/audioStore';
+import AudioWaveform from '@/components/waveform/AudioWaveform.vue';
 
 const audioStore = useAudioStore();
 
@@ -385,6 +416,33 @@ const resetEqualizer = () => {
   updateEqualizer();
 };
 
+// イコライザーゲイン値に応じたクラスを返す
+const getBandClass = (gain) => {
+  if (gain > 0) return 'gain-positive';
+  if (gain < 0) return 'gain-negative';
+  return 'gain-neutral';
+};
+
+// イコライザープリセット
+const eqPresets = [
+  { name: 'フラット', gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { name: 'ベース増強', gains: [8, 6, 4, 2, 0, 0, 0, 0, 0, 0] },
+  { name: '高音増強', gains: [0, 0, 0, 0, 0, 2, 4, 6, 8, 8] },
+  { name: 'ボーカル', gains: [-2, -2, 0, 4, 6, 6, 4, 2, 0, 0] },
+  { name: 'スピーチ', gains: [-6, -2, 0, 4, 6, 6, 4, 0, -2, -6] },
+  { name: 'ポップ', gains: [-2, 0, 4, 6, 4, 0, -2, -2, -2, 0] },
+];
+
+// イコライザープリセットの適用
+const applyEqPreset = (gains) => {
+  audioStore.equalizerBands.forEach((band, index) => {
+    if (index < gains.length) {
+      band.gain = gains[index];
+    }
+  });
+  updateEqualizer();
+};
+
 // 時間表示のフォーマット
 const formatTime = (seconds) => {
   if (isNaN(seconds) || seconds === Infinity) return '0:00';
@@ -478,5 +536,98 @@ input[orient="vertical"] {
   -webkit-appearance: slider-vertical; /* WebKit */
   width: 8px;
   height: 100%;
+}
+
+/* 改善されたイコライザーのスタイル */
+.equalizer-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 180px;
+  padding: 10px 0;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+}
+
+.equalizer-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  padding: 0 2px;
+}
+
+.gain-value {
+  font-size: 0.75rem;
+  font-weight: 500;
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.gain-positive {
+  color: #4caf50;
+}
+
+.gain-negative {
+  color: #f44336;
+}
+
+.gain-neutral {
+  color: #757575;
+}
+
+.slider-container {
+  position: relative;
+  height: 120px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+.vertical-slider {
+  -webkit-appearance: slider-vertical;
+  width: 20px;
+  height: 100%;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+.vertical-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 8px;
+  border-radius: 4px;
+  background: #3498DB;
+  cursor: pointer;
+}
+
+.vertical-slider::-moz-range-thumb {
+  width: 16px;
+  height: 8px;
+  border-radius: 4px;
+  background: #3498DB;
+  cursor: pointer;
+}
+
+.center-line {
+  position: absolute;
+  top: 50%;
+  width: 100%;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+
+.frequency-label {
+  font-size: 0.7rem;
+  color: #666;
+  margin-top: 6px;
+  text-align: center;
+  height: 20px;
 }
 </style>
