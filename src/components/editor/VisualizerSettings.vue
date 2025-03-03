@@ -476,7 +476,6 @@ const formatFrequency = (freq) => {
 const circleThemes = [
   { id: 'default', name: 'デフォルト' },
   { id: 'outline', name: 'アウトライン' },
-  { id: 'outlineFilled', name: '塗りつぶし' },
-  { id: 'hollow', name: '中空型' }
+  { id: 'outlineFilled', name: 'アウトライン塗りつぶし' }
 ];
 </script>
