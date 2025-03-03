@@ -90,7 +90,7 @@
             type="number" 
             v-model.number="customDuration" 
             min="1" 
-            max="600"
+            max="30"
             class="flex-1 border rounded px-2 py-1 text-sm"
             :disabled="exportSettings.duration === null"
           />
@@ -99,7 +99,7 @@
             class="btn text-xs p-1"
             :class="exportSettings.duration !== null ? 'btn-primary' : 'btn-secondary'"
           >
-            秒を指定
+            秒を指定（最大30秒）
           </button>
         </div>
       </div>
@@ -107,9 +107,9 @@
     
     <div class="mb-4 p-3 bg-gray-100 rounded-lg">
       <div class="text-xs text-gray-600">
+        <p class="mb-1"><span class="font-medium">注意:</span> 現在の実装ではスクリーンショットのみ保存できます</p>
         <p class="mb-1"><span class="font-medium">出力サイズ:</span> {{ formatResolution() }}</p>
-        <p class="mb-1"><span class="font-medium">予想ファイルサイズ:</span> {{ estimatedFileSize }}</p>
-        <p><span class="font-medium">エンコード時間（推定）:</span> {{ estimatedEncodingTime }}</p>
+        <p><span class="font-medium">エクスポート形式:</span> {{ exportSettings.format.toUpperCase() }}</p>
       </div>
     </div>
   </div>
@@ -156,8 +156,13 @@ const audioQualities = [
 
 // カスタム時間を設定
 const setCustomDuration = () => {
-  if (customDuration.value > 0) {
+  // 最大30秒までに制限
+  if (customDuration.value > 0 && customDuration.value <= 30) {
     exportSettings.value.duration = customDuration.value;
+  } else if (customDuration.value > 30) {
+    customDuration.value = 30;
+    exportSettings.value.duration = 30;
+    alert('最大30秒までしかエクスポートできません');
   }
 };
 
