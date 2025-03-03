@@ -41,7 +41,10 @@ export const useAudioStore = defineStore('audio', {
         centerX: 0.5,
         centerY: 0.5,
         rotation: 0,
-        mirrorMode: false
+        mirrorMode: false,
+        theme: 'default',   // テーマ設定: 'default', 'outline', 'outlineFilled'
+        minRadius: 50,      // 最小半径（音が無い時）
+        lineWidth: 3        // 線の太さ（アウトラインテーマ用）
       },
       
       // 波形タイプの設定
@@ -439,35 +442,35 @@ export const useAudioStore = defineStore('audio', {
     
     // 現在の再生時間を更新（アニメーションフレーム用）
     updateCurrentTime() {
+      // 再生中でない場合は更新しない
       if (!this.isPlaying || !this.audioContext || !this.startTime) return;
       
-      // 開始時間からの経過を計算
-      const elapsedTime = this.audioContext.currentTime - this.startTime;
-      
-      if (this.loop) {
-        // ループモードの場合は時間を循環させる
-        this.currentTime = elapsedTime % this.duration;
-        return;
-      }
-      
-      // 曲の長さを超えた場合は再生を停止
-      if (elapsedTime >= this.duration) {
-        this.currentTime = this.duration;
-        this.isPlaying = false;
+      try {
+        // 開始時間からの経過を計算
+        const elapsedTime = this.audioContext.currentTime - this.startTime;
         
-        // オーディオソースも停止
-        if (this.audioSource) {
-          try {
-            this.audioSource.stop();
-          } catch (e) {
-            // 既に停止している場合は無視
+        if (this.loop) {
+          // ループモードの場合は時間を循環させる
+          this.currentTime = elapsedTime % this.duration;
+        } else {
+          // 曲の長さを超えた場合は再生を停止
+          if (elapsedTime >= this.duration) {
+            this.currentTime = this.duration;
+            // 自動停止（ループでない場合のみ）
+            this.pauseAudio();
+            this.currentTime = 0; // 再生位置を先頭に戻す
+            return;
           }
+          
+          // 現在の再生位置を更新
+          this.currentTime = elapsedTime;
         }
-        return;
+        
+        // コンソールに現在位置をデバッグ出力（必要に応じて）
+        // console.log('Current time:', this.currentTime, 'Duration:', this.duration);
+      } catch (error) {
+        console.error('再生時間更新エラー:', error);
       }
-      
-      // 現在の再生位置を更新
-      this.currentTime = elapsedTime;
     },
     
     // iOSの黙示的再生対応

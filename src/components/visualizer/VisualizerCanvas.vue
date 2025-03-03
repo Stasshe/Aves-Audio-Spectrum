@@ -315,8 +315,11 @@ const drawCircle = (dataArray, bufferLength) => {
   const centerX = settings.centerX * canvasWidth.value;
   const centerY = settings.centerY * canvasHeight.value;
   const baseRadius = settings.radius || Math.min(canvasWidth.value, canvasHeight.value) * 0.3;
+  const minRadius = settings.minRadius || baseRadius * 0.5; // 最小半径（設定されていない場合はベース半径の半分）
   const rotation = (settings.rotation * Math.PI) / 180; // 度数法からラジアンに変換
   const mirrorMode = settings.mirrorMode;
+  const theme = settings.theme || 'default'; // テーマ設定（設定されていない場合はデフォルト）
+  const lineWidth = settings.lineWidth || 3; // 線の太さ（デフォルト値）
   
   // 色の設定
   let circleColor;
@@ -345,6 +348,25 @@ const drawCircle = (dataArray, bufferLength) => {
   const pointCount = mirrorMode ? 180 : 360;
   const angleStep = (Math.PI * 2) / pointCount;
   
+  // テーマに応じた描画メソッドを選択
+  switch (theme) {
+    case 'outline':
+      drawCircleOutline(dataArray, bufferLength, centerX, centerY, baseRadius, minRadius, rotation, mirrorMode, pointCount, angleStep, circleColor, lineWidth, sensitivity);
+      break;
+    case 'outlineFilled':
+      drawCircleOutlineFilled(dataArray, bufferLength, centerX, centerY, baseRadius, minRadius, rotation, mirrorMode, pointCount, angleStep, circleColor, lineWidth, sensitivity);
+      break;
+    case 'default':
+    default:
+      drawCircleDefault(dataArray, bufferLength, centerX, centerY, baseRadius, minRadius, rotation, mirrorMode, pointCount, angleStep, circleColor, sensitivity);
+      break;
+  }
+};
+
+// デフォルト円形ビジュアライザー（塗りつぶし）
+const drawCircleDefault = (dataArray, bufferLength, centerX, centerY, baseRadius, minRadius, rotation, mirrorMode, pointCount, angleStep, circleColor, sensitivity) => {
+  const ctx = canvasContext.value;
+  
   ctx.beginPath();
   
   // 最初のポイントから描画を開始
@@ -357,7 +379,7 @@ const drawCircle = (dataArray, bufferLength) => {
     value = Math.min(value * sensitivity, 1.0);
     
     // 半径を計算（ベース半径 + 音響反応）
-    const radius = baseRadius * (1 + value * 0.5);
+    const radius = minRadius + (baseRadius - minRadius) * value;
     
     // ミラーモードの場合は値を反映
     const angle = i * angleStep + rotation;
@@ -377,7 +399,7 @@ const drawCircle = (dataArray, bufferLength) => {
       let mirrorValue = dataArray[mirrorDataIndex] / 255.0;
       mirrorValue = Math.min(mirrorValue * sensitivity, 1.0);
       
-      const mirrorRadius = baseRadius * (1 + mirrorValue * 0.5);
+      const mirrorRadius = minRadius + (baseRadius - minRadius) * mirrorValue;
       const mirrorAngle = mirrorIndex * angleStep + rotation;
       const mirrorX = centerX + mirrorRadius * Math.cos(mirrorAngle);
       const mirrorY = centerY + mirrorRadius * Math.sin(mirrorAngle);
@@ -414,6 +436,173 @@ const drawCircle = (dataArray, bufferLength) => {
   // 閉じたパスを描画
   ctx.closePath();
   ctx.fill();
+};
+
+// アウトライン円形ビジュアライザー（線のみ）
+const drawCircleOutline = (dataArray, bufferLength, centerX, centerY, baseRadius, minRadius, rotation, mirrorMode, pointCount, angleStep, circleColor, lineWidth, sensitivity) => {
+  const ctx = canvasContext.value;
+  
+  ctx.beginPath();
+  
+  // 最初のポイントから描画を開始
+  for (let i = 0; i < pointCount; i++) {
+    // データサンプリング - データポイント数に合わせる
+    const dataIndex = Math.floor(i * (bufferLength / pointCount));
+    let value = dataArray[dataIndex] / 255.0; // 0〜1に正規化
+    
+    // 感度を適用
+    value = Math.min(value * sensitivity, 1.0);
+    
+    // 半径を計算（ベース半径 + 音響反応）
+    const radius = minRadius + (baseRadius - minRadius) * value;
+    
+    // ミラーモードの場合は値を反映
+    const angle = i * angleStep + rotation;
+    const x = centerX + radius * Math.cos(angle);
+    const y = centerY + radius * Math.sin(angle);
+    
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+    
+    // ミラーモードの反対側を描画
+    if (mirrorMode && i < pointCount / 2) {
+      const mirrorIndex = pointCount - 1 - i;
+      const mirrorDataIndex = Math.floor(mirrorIndex * (bufferLength / pointCount));
+      let mirrorValue = dataArray[mirrorDataIndex] / 255.0;
+      mirrorValue = Math.min(mirrorValue * sensitivity, 1.0);
+      
+      const mirrorRadius = minRadius + (baseRadius - minRadius) * mirrorValue;
+      const mirrorAngle = mirrorIndex * angleStep + rotation;
+      const mirrorX = centerX + mirrorRadius * Math.cos(mirrorAngle);
+      const mirrorY = centerY + mirrorRadius * Math.sin(mirrorAngle);
+      
+      // 反対側の点を記録
+      ctx.lineTo(mirrorX, mirrorY);
+    }
+  }
+  
+  if (colorSettings.value.type === 'frequency') {
+    const gradient = ctx.createLinearGradient(
+      centerX - baseRadius, centerY - baseRadius,
+      centerX + baseRadius, centerY + baseRadius
+    );
+    
+    const frequencyColors = colorSettings.value.frequencyColors || [];
+    if (frequencyColors.length >= 2) {
+      for (let i = 0; i < frequencyColors.length; i++) {
+        const stop = i / (frequencyColors.length - 1);
+        gradient.addColorStop(stop, frequencyColors[i].color);
+      }
+    } else {
+      gradient.addColorStop(0, '#3498DB');
+      gradient.addColorStop(1, '#8E44AD');
+    }
+    
+    ctx.strokeStyle = gradient;
+  } else {
+    ctx.strokeStyle = circleColor;
+  }
+  
+  // 線のスタイル設定
+  ctx.lineWidth = lineWidth;
+  ctx.lineJoin = 'round';
+  
+  // 閉じたパスを描画（塗りつぶしなし、線のみ）
+  ctx.closePath();
+  ctx.stroke();
+};
+
+// アウトライン塗りつぶし円形ビジュアライザー（線と塗りつぶし）
+const drawCircleOutlineFilled = (dataArray, bufferLength, centerX, centerY, baseRadius, minRadius, rotation, mirrorMode, pointCount, angleStep, circleColor, lineWidth, sensitivity) => {
+  const ctx = canvasContext.value;
+  
+  ctx.beginPath();
+  
+  // 最初のポイントから描画を開始
+  for (let i = 0; i < pointCount; i++) {
+    // データサンプリング - データポイント数に合わせる
+    const dataIndex = Math.floor(i * (bufferLength / pointCount));
+    let value = dataArray[dataIndex] / 255.0; // 0〜1に正規化
+    
+    // 感度を適用
+    value = Math.min(value * sensitivity, 1.0);
+    
+    // 半径を計算（ベース半径 + 音響反応）
+    const radius = minRadius + (baseRadius - minRadius) * value;
+    
+    // ミラーモードの場合は値を反映
+    const angle = i * angleStep + rotation;
+    const x = centerX + radius * Math.cos(angle);
+    const y = centerY + radius * Math.sin(angle);
+    
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+    
+    // ミラーモードの反対側を描画
+    if (mirrorMode && i < pointCount / 2) {
+      const mirrorIndex = pointCount - 1 - i;
+      const mirrorDataIndex = Math.floor(mirrorIndex * (bufferLength / pointCount));
+      let mirrorValue = dataArray[mirrorDataIndex] / 255.0;
+      mirrorValue = Math.min(mirrorValue * sensitivity, 1.0);
+      
+      const mirrorRadius = minRadius + (baseRadius - minRadius) * mirrorValue;
+      const mirrorAngle = mirrorIndex * angleStep + rotation;
+      const mirrorX = centerX + mirrorRadius * Math.cos(mirrorAngle);
+      const mirrorY = centerY + mirrorRadius * Math.sin(mirrorAngle);
+      
+      // 反対側の点を記録
+      ctx.lineTo(mirrorX, mirrorY);
+    }
+  }
+  
+  // 周波数に基づく色の設定（オプション）
+  if (colorSettings.value.type === 'frequency') {
+    const gradient = ctx.createRadialGradient(
+      centerX, centerY, baseRadius * 0.5,
+      centerX, centerY, baseRadius * 1.5
+    );
+    
+    const frequencyColors = colorSettings.value.frequencyColors || [];
+    if (frequencyColors.length >= 2) {
+      for (let i = 0; i < frequencyColors.length; i++) {
+        const stop = i / (frequencyColors.length - 1);
+        gradient.addColorStop(stop, frequencyColors[i].color);
+      }
+    } else {
+      gradient.addColorStop(0, 'rgba(52, 152, 219, 0.3)');
+      gradient.addColorStop(1, 'rgba(142, 68, 173, 0.3)');
+    }
+    
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = gradient;
+  } else {
+    // 半透明の塗りつぶし色を作成
+    let fillColor = circleColor;
+    if (typeof circleColor === 'string' && circleColor.startsWith('#')) {
+      const r = parseInt(circleColor.slice(1, 3), 16);
+      const g = parseInt(circleColor.slice(3, 5), 16);
+      const b = parseInt(circleColor.slice(5, 7), 16);
+      fillColor = `rgba(${r}, ${g}, ${b}, 0.3)`;
+    }
+    
+    ctx.fillStyle = fillColor;
+    ctx.strokeStyle = circleColor;
+  }
+  
+  // 線のスタイル設定
+  ctx.lineWidth = lineWidth;
+  ctx.lineJoin = 'round';
+  
+  // 閉じたパスを描画（塗りつぶしあり、線あり）
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 };
 
 // 波形ビジュアライザー

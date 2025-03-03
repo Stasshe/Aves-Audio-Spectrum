@@ -155,7 +155,7 @@
       
       <div class="mb-4">
         <label class="block text-sm mb-1">テーマ</label>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-3 gap-2">
           <button 
             v-for="theme in circleThemes" 
             :key="theme.id"
@@ -194,7 +194,7 @@
             step="5" 
             class="flex-1"
           />
-          <span class="text-sm w-12 text-right">{{ settings.circle.minRadius }}px</span>
+          <span class="text-sm w-12 text-right">{{ settings.circle.minRadius || '50' }}px</span>
         </div>
       </div>
       
@@ -209,7 +209,7 @@
             step="0.5" 
             class="flex-1"
           />
-          <span class="text-sm w-12 text-right">{{ settings.circle.lineWidth }}px</span>
+          <span class="text-sm w-12 text-right">{{ settings.circle.lineWidth || '3' }}px</span>
         </div>
       </div>
       
@@ -416,7 +416,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useAudioStore } from '@/stores/audioStore';
 
 const audioStore = useAudioStore();
@@ -477,4 +477,25 @@ const circleThemes = [
   { id: 'outline', name: 'アウトライン' },
   { id: 'outlineFilled', name: 'アウトライン塗りつぶし' }
 ];
+
+// デフォルト値の初期化
+const initDefaultSettings = () => {
+  // 円形設定のデフォルト値を確保
+  if (!settings.value.circle.theme) {
+    settings.value.circle.theme = 'default';
+  }
+  if (!settings.value.circle.minRadius) {
+    settings.value.circle.minRadius = 50;
+  }
+  if (!settings.value.circle.lineWidth) {
+    settings.value.circle.lineWidth = 3;
+  }
+  
+  // ...他のデフォルト設定があればここに追加...
+};
+
+// コンポーネントがマウントされた時にデフォルト設定を初期化
+onMounted(() => {
+  initDefaultSettings();
+});
 </script>

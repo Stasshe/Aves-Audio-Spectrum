@@ -218,8 +218,10 @@ const removeAudioFile = () => {
 const togglePlayback = () => {
   if (isPlaying.value) {
     audioStore.pauseAudio();
+    stopTimeUpdate();
   } else {
     audioStore.playAudio();
+    startTimeUpdate();
   }
 };
 
@@ -322,27 +324,32 @@ let timeUpdateInterval = null;
 const startTimeUpdate = () => {
   stopTimeUpdate();
   
-  timeUpdateInterval = setInterval(() => {
-    if (!isPlaying.value) return;
-    
-    const now = audioStore.audioContext.currentTime;
-    const offset = audioStore.currentTime;
-    const elapsed = now - audioStore.startTime + offset;
-    
-    if (elapsed >= audioStore.duration) {
-      stopPlayback();
+  // requestAnimationFrameを使用する方法に変更
+  const updateTimeAnimated = () => {
+    if (!isPlaying.value) {
+      stopTimeUpdate();
       return;
     }
     
-    audioStore.currentTime = Math.min(elapsed, audioStore.duration);
-  }, 100);
+    // AudioStore内のupdateCurrentTimeを使用
+    audioStore.updateCurrentTime();
+    
+    // 次のフレームをリクエスト
+    timeUpdateFrame = requestAnimationFrame(updateTimeAnimated);
+  };
+  
+  // アニメーションフレームを使用
+  timeUpdateFrame = requestAnimationFrame(updateTimeAnimated);
 };
+
+// アニメーションフレームを保存する変数
+let timeUpdateFrame = null;
 
 // 再生時間の定期更新を停止
 const stopTimeUpdate = () => {
-  if (timeUpdateInterval) {
-    clearInterval(timeUpdateInterval);
-    timeUpdateInterval = null;
+  if (timeUpdateFrame) {
+    cancelAnimationFrame(timeUpdateFrame);
+    timeUpdateFrame = null;
   }
 };
 
@@ -369,6 +376,15 @@ onMounted(() => {
   // コンポーネントにドラッグ&ドロップイベントリスナーを設定
   document.addEventListener('dragover', handleDragOver);
   document.addEventListener('drop', handleDrop);
+  
+  // 再生状態変更時にアニメーションを開始/停止
+  watch(() => isPlaying.value, (playing) => {
+    if (playing) {
+      startTimeUpdate();
+    } else {
+      stopTimeUpdate();
+    }
+  }, { immediate: true });
   
   // クリーンアップ
   onBeforeUnmount(() => {

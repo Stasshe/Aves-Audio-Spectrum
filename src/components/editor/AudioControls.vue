@@ -186,10 +186,17 @@ const startTimeUpdate = () => {
       return;
     }
     
+    // オーディオストアの更新メソッドを呼び出す
     audioStore.updateCurrentTime();
+    
+    // 再生位置を更新
+    currentTimeValue.value = audioStore.currentTime;
+    
+    // 次のフレームをリクエスト
     animationFrame = requestAnimationFrame(updateTime);
   };
   
+  // 最初のフレームをリクエスト
   animationFrame = requestAnimationFrame(updateTime);
 };
 
@@ -205,14 +212,14 @@ onMounted(() => {
   // 初期値を設定
   currentTimeValue.value = audioStore.currentTime;
   
-  // 再生状態を監視
+  // 再生状態を監視して更新処理を開始/停止
   watch(() => isPlaying.value, (playing) => {
     if (playing) {
       startTimeUpdate();
     } else {
       stopTimeUpdate();
     }
-  });
+  }, { immediate: true }); // 初期状態でも即時実行
   
   // 既に再生中なら更新を開始
   if (isPlaying.value) {

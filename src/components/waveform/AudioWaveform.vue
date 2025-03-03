@@ -204,6 +204,17 @@ watch(() => audioStore.currentTime, () => {
   // プレイヘッドの位置を更新（計算済みのplayheadPositionを使用）
   // Vue の reactive システムがこの監視によって自動的に playheadPosition の再計算と再レンダリングを行う
 });
+
+// 再生位置を常に追跡するために、現在時間の変更を監視
+watch(() => audioStore.currentTime, (newTime) => {
+  // プレイヘッドの位置は reactive なのでここでは何もしなくても自動的に更新される
+  // ただし、波形を描画する必要がある場合は以下を呼び出す
+  if (waveformData.value.length > 0) {
+    // 定期的に波形を再描画（オプション）
+    // 波形そのものは静的なので、必要なければコメントアウト
+    // drawWaveform();
+  }
+}, { immediate: true });
 </script>
 
 <style scoped>
@@ -229,7 +240,7 @@ watch(() => audioStore.currentTime, () => {
   background-color: #ff5722;
   box-shadow: 0 0 4px rgba(255, 87, 34, 0.7);
   pointer-events: none;
-  transition: left 0.05s linear;  /* アニメーションを滑らかに */
+  transition: left 0.01s linear; /* アニメーション時間を短縮 */
 }
 
 /* 波形ローディングインジケータ */
