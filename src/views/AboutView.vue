@@ -1,19 +1,32 @@
 <template>
   <div class="about">
-    <div class="container mx-auto px-4 py-8">
-      <h1 class="text-3xl font-bold mb-6">About Aves Audio Spectrum</h1>
-      <div class="bg-white shadow-md rounded-lg p-6">
-        <p class="mb-4">
-          Aves Audio Spectrumはオーディオファイルを視覚的に表現し、スペクトラム分析結果を表示・エクスポートするためのツールです。
-        </p>
-        <p class="mb-4">
-          アップロードしたオーディオファイルを分析し、周波数スペクトラムをリアルタイムで表示します。
-          また、表示された視覚エフェクトを動画ファイルとして保存することもできます。
-        </p>
-        <p>
-          バージョン: 0.1.0
-        </p>
-      </div>
+    <h1 class="text-3xl font-bold mb-6">Aves Audio Spectrum について</h1>
+    
+    <div class="card">
+      <p class="mb-4">Aves Audio Spectrumは、音楽や音声ファイルを視覚化し、美しいスペクトラムアニメーションを作成するためのウェブアプリケーションです。</p>
+      
+      <p class="mb-4">特徴：</p>
+      <ul class="list-style-disc pl-6 mb-4">
+        <li>複数の視覚化スタイル（バー、円形、波形、粒子など）</li>
+        <li>各種パラメータのカスタマイズ（カラー、サイズ、感度など）</li>
+        <li>背景の変更（単色、グラデーション、画像）</li>
+        <li>イコライザーによる音声調整</li>
+        <li>様々な解像度での動画エクスポート</li>
+        <li>直感的なインターフェース</li>
+      </ul>
+      
+      <p class="mb-4">使用方法：</p>
+      <ol class="list-style-decimal pl-6 mb-4">
+        <li>エディター画面でオーディオファイルをアップロード</li>
+        <li>ビジュアライザータイプと各種設定をカスタマイズ</li>
+        <li>背景や色を調整</li>
+        <li>必要に応じてイコライザーで音声を調整</li>
+        <li>エクスポート設定を選択して動画を生成</li>
+      </ol>
+      
+      <p class="mb-4">このアプリケーションはVue.js、Web Audio API、Canvas APIを使用して構築されています。</p>
+      
+      <p>バージョン: 1.0.0</p>
     </div>
   </div>
 </template>
@@ -23,3 +36,19 @@ export default {
   name: 'AboutView'
 }
 </script>
+
+<style>
+.list-style-disc {
+  list-style-type: disc;
+}
+.list-style-decimal {
+  list-style-type: decimal;
+}
+.pl-6 {
+  padding-left: 1.5rem;
+}
+.text-3xl {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+</style>

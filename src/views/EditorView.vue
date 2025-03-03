@@ -80,7 +80,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useAudioStore } from '@/stores/audioStore';
-import WaveSurfer from 'wavesurfer.js';
 import AudioUploader from '@/components/editor/AudioUploader.vue';
 import VisualizerSettings from '@/components/editor/VisualizerSettings.vue';
 import BackgroundSettings from '@/components/editor/BackgroundSettings.vue';
@@ -88,6 +87,9 @@ import EqualizerSettings from '@/components/editor/EqualizerSettings.vue';
 import ExportSettings from '@/components/editor/ExportSettings.vue';
 import { createVisualizer } from '@/utils/visualizer';
 import { exportVideoFile } from '@/utils/export';
+
+// 動的インポート - ビルド時のエラーを回避
+let WaveSurfer;
 
 const audioStore = useAudioStore();
 const visualizerCanvas = ref(null);
@@ -154,55 +156,65 @@ const setupAudio = async () => {
     cancelAnimationFrame(animationFrame);
   }
   
-  // WaveSurferの初期化
-  wavesurfer = WaveSurfer.create({
-    container: waveformContainer.value,
-    waveColor: '#3498DB',
-    progressColor: '#16A085',
-    cursorColor: '#2C3E50',
-    height: 80,
-    responsive: true,
-  });
-  
-  // オーディオファイルの読み込み
-  wavesurfer.loadBlob(audioStore.audioFile);
-  
-  // イベントリスナーの設定
-  wavesurfer.on('ready', () => {
-    audioStore.duration = wavesurfer.getDuration();
-    
-    // オーディオコンテキストと分析ノードのセットアップ
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = audioStore.visualizerSettings.fftSize;
-    analyser.smoothingTimeConstant = audioStore.visualizerSettings.smoothingTimeConstant;
-    
-    // WaveSurferからメディア要素を取得
-    const mediaElement = wavesurfer.getMediaElement();
-    if (mediaElement) {
-      const source = audioContext.createMediaElementSource(mediaElement);
-      source.connect(analyser);
-      analyser.connect(audioContext.destination);
-      
-      // ビジュアライザーの初期化
-      visualizer = createVisualizer(visualizerCanvas.value, analyser, audioStore);
-      
-      // アニメーションループの開始
-      const animate = () => {
-        if (audioStore.isPlaying) {
-          audioStore.currentTime = wavesurfer.getCurrentTime();
-          visualizer.draw();
-        }
-        animationFrame = requestAnimationFrame(animate);
-      };
-      animate();
+  try {
+    // WaveSurferを動的にロード
+    if (!WaveSurfer) {
+      WaveSurfer = (await import('wavesurfer.js')).default;
     }
-  });
-  
-  wavesurfer.on('finish', () => {
-    audioStore.isPlaying = false;
-    audioStore.currentTime = 0;
-  });
+    
+    // WaveSurferの初期化
+    wavesurfer = WaveSurfer.create({
+      container: waveformContainer.value,
+      waveColor: '#3498DB',
+      progressColor: '#16A085',
+      cursorColor: '#2C3E50',
+      height: 80,
+      responsive: true,
+    });
+    
+    // オーディオファイルの読み込み
+    wavesurfer.loadBlob(audioStore.audioFile);
+    
+    // イベントリスナーの設定
+    wavesurfer.on('ready', () => {
+      audioStore.duration = wavesurfer.getDuration();
+      
+      // オーディオコンテキストと分析ノードのセットアップ
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = audioStore.visualizerSettings.fftSize;
+      analyser.smoothingTimeConstant = audioStore.visualizerSettings.smoothingTimeConstant;
+      
+      // WaveSurferからメディア要素を取得
+      const mediaElement = wavesurfer.getMediaElement();
+      if (mediaElement) {
+        const source = audioContext.createMediaElementSource(mediaElement);
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
+        
+        // ビジュアライザーの初期化
+        visualizer = createVisualizer(visualizerCanvas.value, analyser, audioStore);
+        
+        // アニメーションループの開始
+        const animate = () => {
+          if (audioStore.isPlaying) {
+            audioStore.currentTime = wavesurfer.getCurrentTime();
+            visualizer.draw();
+          }
+          animationFrame = requestAnimationFrame(animate);
+        };
+        animate();
+      }
+    });
+    
+    wavesurfer.on('finish', () => {
+      audioStore.isPlaying = false;
+      audioStore.currentTime = 0;
+    });
+  } catch (error) {
+    console.error('オーディオ初期化エラー:', error);
+    alert('オーディオの初期化に失敗しました。');
+  }
 };
 
 // 設定変更時にビジュアライザーを更新

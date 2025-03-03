@@ -1,16 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import EditorView from '../views/EditorView.vue'
 
 const routes = [
   {
     path: '/',
-    name: 'home',
-    component: HomeView
+    name: 'editor',
+    component: EditorView
   },
   {
     path: '/about',
     name: 'about',
-    // 遅延ロードの例
     component: () => import('../views/AboutView.vue')
   }
 ]

@@ -1,188 +1,221 @@
 <template>
   <div>
-    <div class="grid grid-cols-2 gap-4 mb-4">
-      <div>
-        <label class="block text-sm font-medium mb-1">解像度</label>
-        <select v-model="resolution" class="input-field w-full text-sm" @change="updateResolution">
-          <option v-for="res in resolutions" :key="res.label" :value="res">
-            {{ res.label }}
-          </option>
-        </select>
-      </div>
-      
-      <div>
-        <label class="block text-sm font-medium mb-1">フレームレート</label>
-        <select v-model="settings.fps" class="input-field w-full text-sm">
-          <option value="24">24fps</option>
-          <option value="30">30fps</option>
-          <option value="60">60fps</option>
-        </select>
+    <div class="mb-4">
+      <label class="block text-sm font-medium mb-1">解像度</label>
+      <div class="grid grid-cols-3 gap-2">
+        <button 
+          v-for="resolution in resolutions" 
+          :key="resolution.id"
+          @click="exportSettings.resolution = resolution.id"
+          class="btn text-xs p-1" 
+          :class="exportSettings.resolution === resolution.id ? 'btn-primary' : 'btn-secondary'"
+        >
+          {{ resolution.name }}
+        </button>
       </div>
     </div>
     
     <div class="mb-4">
-      <label class="block text-sm font-medium mb-1">エクスポート形式</label>
-      <select v-model="settings.format" class="input-field w-full text-sm">
-        <option value="mp4">MP4 ビデオ</option>
-        <option value="webm">WebM ビデオ</option>
-        <option value="gif">GIF アニメーション</option>
-      </select>
+      <label class="block text-sm font-medium mb-1">フレームレート</label>
+      <div class="grid grid-cols-3 gap-2">
+        <button 
+          v-for="fps in frameRates" 
+          :key="fps"
+          @click="exportSettings.fps = fps"
+          class="btn text-xs p-1" 
+          :class="exportSettings.fps === fps ? 'btn-primary' : 'btn-secondary'"
+        >
+          {{ fps }}fps
+        </button>
+      </div>
     </div>
     
-    <div class="mb-4" v-if="settings.format !== 'gif'">
+    <div class="mb-4">
+      <label class="block text-sm font-medium mb-1">ビデオ形式</label>
+      <div class="grid grid-cols-3 gap-2">
+        <button 
+          v-for="format in videoFormats" 
+          :key="format.id"
+          @click="exportSettings.format = format.id"
+          class="btn text-xs p-1" 
+          :class="exportSettings.format === format.id ? 'btn-primary' : 'btn-secondary'"
+        >
+          {{ format.name }}
+        </button>
+      </div>
+    </div>
+    
+    <div class="mb-4">
       <label class="block text-sm font-medium mb-1">ビデオ品質</label>
-      <select v-model="settings.videoBitrate" class="input-field w-full text-sm">
-        <option value="1M">低 (1 Mbps)</option>
-        <option value="4M">中 (4 Mbps)</option>
-        <option value="8M">高 (8 Mbps)</option>
-      </select>
+      <div class="grid grid-cols-3 gap-2">
+        <button 
+          v-for="quality in videoQualities" 
+          :key="quality.bitrate"
+          @click="exportSettings.videoBitrate = quality.bitrate"
+          class="btn text-xs p-1" 
+          :class="exportSettings.videoBitrate === quality.bitrate ? 'btn-primary' : 'btn-secondary'"
+        >
+          {{ quality.name }}
+        </button>
+      </div>
     </div>
     
     <div class="mb-4">
-      <label class="block text-sm font-medium mb-1">長さ</label>
-      <div class="flex items-center gap-2">
-        <select v-model="durationOption" class="input-field text-sm flex-1">
-          <option value="full">オーディオ全体</option>
-          <option value="custom">カスタム</option>
-        </select>
-        
-        <input
-          v-if="durationOption === 'custom'"
-          type="number"
-          v-model.number="customDuration"
-          min="1"
-          :max="Math.ceil(audioStore.duration)"
-          step="1"
-          class="input-field text-sm w-24"
-        />
-        <span v-if="durationOption === 'custom'" class="text-sm">秒</span>
+      <label class="block text-sm font-medium mb-1">音声品質</label>
+      <div class="grid grid-cols-3 gap-2">
+        <button 
+          v-for="quality in audioQualities" 
+          :key="quality.bitrate"
+          @click="exportSettings.audioBitrate = quality.bitrate"
+          class="btn text-xs p-1" 
+          :class="exportSettings.audioBitrate === quality.bitrate ? 'btn-primary' : 'btn-secondary'"
+        >
+          {{ quality.name }}
+        </button>
       </div>
     </div>
     
-    <div class="mt-5 border-t pt-4">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-sm font-medium">推定ファイルサイズ:</span>
-        <span class="text-sm">{{ estimatedSize }}</span>
+    <div class="mb-4">
+      <label class="block text-sm font-medium mb-1">出力時間</label>
+      <div class="grid grid-cols-1 gap-2">
+        <button 
+          @click="exportSettings.duration = null"
+          class="btn text-xs p-1" 
+          :class="exportSettings.duration === null ? 'btn-primary' : 'btn-secondary'"
+        >
+          全体
+        </button>
+        <div class="flex gap-2">
+          <input 
+            type="number" 
+            v-model.number="customDuration" 
+            min="1" 
+            max="600"
+            class="flex-1 border rounded px-2 py-1 text-sm"
+            :disabled="exportSettings.duration === null"
+          />
+          <button 
+            @click="setCustomDuration"
+            class="btn text-xs p-1"
+            :class="exportSettings.duration !== null ? 'btn-primary' : 'btn-secondary'"
+          >
+            秒を指定
+          </button>
+        </div>
       </div>
-      
-      <div class="flex items-center justify-between">
-        <span class="text-sm font-medium">推定処理時間:</span>
-        <span class="text-sm">{{ estimatedTime }}</span>
+    </div>
+    
+    <div class="mb-4 p-3 bg-gray-100 rounded-lg">
+      <div class="text-xs text-gray-600">
+        <p class="mb-1"><span class="font-medium">出力サイズ:</span> {{ formatResolution() }}</p>
+        <p class="mb-1"><span class="font-medium">予想ファイルサイズ:</span> {{ estimatedFileSize }}</p>
+        <p><span class="font-medium">エンコード時間（推定）:</span> {{ estimatedEncodingTime }}</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { useAudioStore } from '@/stores/audioStore';
 
 const audioStore = useAudioStore();
-const settings = computed(() => audioStore.exportSettings);
-
-// 解像度プリセット
-const resolutions = [
-  { label: '720p (HD)', width: 1280, height: 720 },
-  { label: '1080p (Full HD)', width: 1920, height: 1080 },
-  { label: '480p (SD)', width: 854, height: 480 },
-  { label: '360p', width: 640, height: 360 },
-  { label: '240p', width: 426, height: 240 },
-];
-
-// 現在の解像度
-const resolution = ref(resolutions[0]);
-
-// 長さオプション
-const durationOption = ref('full');
+const exportSettings = computed(() => audioStore.exportSettings);
 const customDuration = ref(30);
 
-// 解像度を更新
-const updateResolution = () => {
-  settings.value.width = resolution.value.width;
-  settings.value.height = resolution.value.height;
+// 解像度設定
+const resolutions = [
+  { id: '720p', name: 'HD', width: 1280, height: 720 },
+  { id: '1080p', name: 'Full HD', width: 1920, height: 1080 },
+  { id: '4k', name: '4K', width: 3840, height: 2160 }
+];
+
+// フレームレート設定
+const frameRates = [24, 30, 60];
+
+// ビデオ形式
+const videoFormats = [
+  { id: 'mp4', name: 'MP4' },
+  { id: 'webm', name: 'WebM' },
+  { id: 'gif', name: 'GIF' }
+];
+
+// ビデオ品質
+const videoQualities = [
+  { name: '低', bitrate: '4000k' },
+  { name: '中', bitrate: '8000k' },
+  { name: '高', bitrate: '16000k' }
+];
+
+// 音声品質
+const audioQualities = [
+  { name: '低', bitrate: '128k' },
+  { name: '中', bitrate: '256k' },
+  { name: '高', bitrate: '320k' }
+];
+
+// カスタム時間を設定
+const setCustomDuration = () => {
+  if (customDuration.value > 0) {
+    exportSettings.value.duration = customDuration.value;
+  }
 };
 
-// ファイル容量の推定計算
-const estimatedSize = computed(() => {
-  const duration = durationOption.value === 'full' ? audioStore.duration : customDuration.value;
-  if (!duration) return '計算中...';
+// 解像度の表示をフォーマット
+const formatResolution = () => {
+  const res = resolutions.find(r => r.id === exportSettings.value.resolution);
+  return `${res.width} × ${res.height}`;
+};
+
+// ファイルサイズの推定
+const estimatedFileSize = computed(() => {
+  const res = resolutions.find(r => r.id === exportSettings.value.resolution);
+  const videoBitrate = parseInt(exportSettings.value.videoBitrate);
+  const audioBitrate = parseInt(exportSettings.value.audioBitrate);
+  const fps = exportSettings.value.fps;
   
-  let bitsPerSecond;
-  switch (settings.value.format) {
-    case 'mp4':
-      bitsPerSecond = parseInt(settings.value.videoBitrate.replace('M', '')) * 1024 * 1024;
-      break;
-    case 'webm':
-      bitsPerSecond = parseInt(settings.value.videoBitrate.replace('M', '')) * 1024 * 1024 * 0.8; // WebMは効率的
-      break;
-    case 'gif':
-      // GIFはサイズが大きくなる
-      bitsPerSecond = settings.value.width * settings.value.height * settings.value.fps * 0.3;
-      break;
-    default:
-      bitsPerSecond = 4 * 1024 * 1024;
-  }
+  // bitrate = bits per second
+  const totalBitrate = videoBitrate + audioBitrate * 1000;
+  const duration = exportSettings.value.duration || audioStore.duration || 180; // 3分をデフォルトとする
   
-  // ビットからバイトへ変換して、容量を計算
-  const bytes = (bitsPerSecond / 8) * duration;
+  // ビットレート×時間（秒）÷8 = バイト単位のサイズ
+  const sizeInBytes = (totalBitrate * duration) / 8;
   
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  } else if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  // サイズを適切な単位で表示
+  if (sizeInBytes < 1024 * 1024) {
+    return `${(sizeInBytes / 1024).toFixed(1)} KB`;
+  } else if (sizeInBytes < 1024 * 1024 * 1024) {
+    return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
   } else {
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    return `${(sizeInBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
 });
 
-// 処理時間の推定
-const estimatedTime = computed(() => {
-  const duration = durationOption.value === 'full' ? audioStore.duration : customDuration.value;
-  if (!duration) return '計算中...';
+// エンコード時間の推定（とても大雑把）
+const estimatedEncodingTime = computed(() => {
+  const res = resolutions.find(r => r.id === exportSettings.value.resolution);
+  const fps = exportSettings.value.fps;
+  const duration = exportSettings.value.duration || audioStore.duration || 180;
   
-  // 解像度とフレームレートから計算
-  const pixels = settings.value.width * settings.value.height;
-  const complexityFactor = pixels / (1280 * 720); // 720pを基準
+  // 解像度が高いほど、フレームレートが高いほど時間がかかる
+  const resolutionFactor = res.width * res.height / (1280 * 720); // 720pを基準
+  const fpsFactor = fps / 30; // 30fpsを基準
   
-  // 処理時間の推定（実際のデバイス性能により大きく異なる）
-  let processingTimeRatio = 0.5; // 基本的に実時間の0.5倍
+  // 1分あたりの処理時間（高解像度・高フレームレートほど長い）
+  const processingTimePerMinute = 2 * resolutionFactor * fpsFactor;
   
-  if (settings.value.format === 'gif') {
-    processingTimeRatio *= 0.8; // GIFは比較的速い
-  }
+  // 総処理時間（分）
+  const totalMinutes = (duration / 60) * processingTimePerMinute;
   
-  if (settings.value.fps === 60) {
-    processingTimeRatio *= 1.8; // 60fpsは処理が重い
-  } else if (settings.value.fps === 24) {
-    processingTimeRatio *= 0.8; // 24fpsは軽い
-  }
-  
-  const estimatedSeconds = duration * processingTimeRatio * complexityFactor;
-  
-  if (estimatedSeconds < 60) {
-    return `約${Math.ceil(estimatedSeconds)}秒`;
+  // 時間と分に変換
+  if (totalMinutes < 1) {
+    return `${Math.ceil(totalMinutes * 60)} 秒`;
+  } else if (totalMinutes < 60) {
+    return `${Math.floor(totalMinutes)} 分 ${Math.ceil((totalMinutes % 1) * 60)} 秒`;
   } else {
-    const mins = Math.floor(estimatedSeconds / 60);
-    const secs = Math.ceil(estimatedSeconds % 60);
-    return `約${mins}分${secs}秒`;
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = Math.floor(totalMinutes % 60);
+    return `${hours} 時間 ${mins} 分`;
   }
 });
-
-// 長さの設定を監視して更新
-watch(durationOption, (value) => {
-  if (value === 'full') {
-    settings.value.duration = null; // 全体を使用
-  } else {
-    settings.value.duration = customDuration.value;
-  }
-});
-
-watch(customDuration, (value) => {
-  if (durationOption.value === 'custom') {
-    settings.value.duration = value;
-  }
-});
-
-// 初期化
-updateResolution();
 </script>

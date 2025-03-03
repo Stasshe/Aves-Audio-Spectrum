@@ -1,31 +1,22 @@
 {
   "name": "aves-audio-spectrum",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "vite"
   },
   "dependencies": {
-    "@ffmpeg/core": "^0.12.3",
-    "@ffmpeg/ffmpeg": "^0.12.6",
-    "@ffmpeg/util": "^0.12.0",
     "file-saver": "^2.0.5",
     "pinia": "^2.1.6",
-    "tailwind": "^4.0.0",
     "vue": "^3.3.4",
     "vue-router": "^4.2.4",
-    "wavesurfer.js": "^7.1.1"
+    "wavesurfer.js": "^7.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^4.3.1",
-    "autoprefixer": "^10.4.14",
-    "postcss": "^8.4.27",
-    "tailwindcss": "^3.3.3",
+    "@vitejs/plugin-vue": "^4.3.4",
     "vite": "^4.4.9"
-  },
-  "engines": {
-    "node": ">=16.0.0"
   }
 }
