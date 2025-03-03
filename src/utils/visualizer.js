@@ -157,8 +157,14 @@ function drawBarsVisualizer(ctx, width, height, dataArray, settings, background)
       break;
       
     case 'gradient':
-      // バーのグラデーションは全体に対して適用する
-      fillStyle = ctx.createLinearGradient(0, height, 0, 0);
+      // グラデーションを縦位置に応じて正しく適用
+      if (bars.verticalAlign === 'top') {
+        fillStyle = ctx.createLinearGradient(0, 0, 0, height);
+      } else if (bars.verticalAlign === 'middle') {
+        fillStyle = ctx.createLinearGradient(0, height/2 - height/4, 0, height/2 + height/4);
+      } else { // bottom
+        fillStyle = ctx.createLinearGradient(0, height, 0, 0);
+      }
       
       // 色が配列であることを確認
       if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
@@ -199,8 +205,8 @@ function drawBarsVisualizer(ctx, width, height, dataArray, settings, background)
     const average = count > 0 ? sum / count / 255 : 0;
     
     // 感度を適用（強化版）- より大きな値になるよう指数関数的にマッピング
-    const scaledValue = Math.pow(average, 0.8); // 小さな値を大きく見せるための指数
-    let barHeight = Math.max(scaledValue * sensitivity * height * 1.5, bars.minHeight);
+    const scaledValue = Math.pow(average, 0.7); // 小さな値を大きく見せるための指数
+    let barHeight = Math.max(scaledValue * sensitivity * height * 1.2, bars.minHeight);
     
     // バーを画面の高さに収める
     barHeight = Math.min(barHeight, height);
@@ -237,11 +243,40 @@ function drawBarsVisualizer(ctx, width, height, dataArray, settings, background)
     if (roundedTop) {
       // 上部が丸いバー
       ctx.beginPath();
-      ctx.moveTo(x, y + barHeight);
-      ctx.lineTo(x, y + barHeight - Math.min(barHeight, barWidth / 2));
-      ctx.arc(x + barWidth / 2, y + barHeight - Math.min(barHeight, barWidth / 2), barWidth / 2, Math.PI, 0, true);
-      ctx.lineTo(x + barWidth, y + barHeight);
-      ctx.fill();
+      
+      if (bars.verticalAlign === 'top') {
+        // 上から下へのバー（丸みは下部に）
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + barHeight - Math.min(barHeight, barWidth / 2));
+        ctx.arc(x + barWidth / 2, y + barHeight - Math.min(barHeight, barWidth / 2), barWidth / 2, Math.PI, 0, false);
+        ctx.lineTo(x + barWidth, y);
+        ctx.fill();
+      } else if (bars.verticalAlign === 'middle') {
+        // 中央からのバー（上下両方に丸み）
+        const halfHeight = barHeight / 2;
+        const radius = Math.min(halfHeight, barWidth / 2);
+        
+        ctx.beginPath();
+        // 左上から時計回りに
+        ctx.moveTo(x, y + radius);
+        ctx.arc(x + radius, y + radius, radius, Math.PI, Math.PI * 1.5, false);
+        ctx.lineTo(x + barWidth - radius, y);
+        ctx.arc(x + barWidth - radius, y + radius, radius, Math.PI * 1.5, 0, false);
+        ctx.lineTo(x + barWidth, y + barHeight - radius);
+        ctx.arc(x + barWidth - radius, y + barHeight - radius, radius, 0, Math.PI * 0.5, false);
+        ctx.lineTo(x + radius, y + barHeight);
+        ctx.arc(x + radius, y + barHeight - radius, radius, Math.PI * 0.5, Math.PI, false);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        // 下から上へのバー（丸みは上部に）
+        ctx.moveTo(x, y + barHeight);
+        ctx.lineTo(x, y + Math.min(barHeight, barWidth / 2));
+        ctx.arc(x + barWidth / 2, y + Math.min(barHeight, barWidth / 2), barWidth / 2, Math.PI, 0, true);
+        ctx.lineTo(x + barWidth, y + barHeight);
+        ctx.fill();
+      }
+      
     } else {
       // 通常の四角形バー
       ctx.fillRect(x, y, barWidth, barHeight);
@@ -275,25 +310,48 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
       break;
       
     case 'gradient':
-      // 円形グラデーション
-      const gradient = ctx.createRadialGradient(
-        centerX, centerY, minRadius * 0.8,
-        centerX, centerY, maxRadius * 1.2
-      );
-      
-      // 色が配列であることを確認
-      if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
-        color.gradient.colors.forEach((color, i, arr) => {
-          gradient.addColorStop(i / (arr.length - 1), color);
-        });
+      // 円形グラデーション - 効果を改善
+      if (circle.theme === 'outline' || circle.theme === 'outlineFilled') {
+        // アウトラインの場合は線形グラデーションを使用
+        const gradient = ctx.createLinearGradient(
+          centerX - maxRadius, centerY - maxRadius,
+          centerX + maxRadius, centerY + maxRadius
+        );
+        
+        // 色が配列であることを確認
+        if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
+          color.gradient.colors.forEach((color, i, arr) => {
+            gradient.addColorStop(i / (arr.length - 1), color);
+          });
+        } else {
+          // フォールバック
+          gradient.addColorStop(0, '#3498DB');
+          gradient.addColorStop(1, '#8E44AD');
+        }
+        
+        fillStyle = gradient;
+        strokeStyle = gradient;
       } else {
-        // フォールバック（色が配列でない場合）
-        gradient.addColorStop(0, '#3498DB');
-        gradient.addColorStop(1, '#8E44AD');
+        // その他のテーマでは放射状グラデーションを使用
+        const gradient = ctx.createRadialGradient(
+          centerX, centerY, minRadius * 0.8,
+          centerX, centerY, maxRadius * 1.2
+        );
+        
+        // 色が配列であることを確認
+        if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
+          color.gradient.colors.forEach((color, i, arr) => {
+            gradient.addColorStop(i / (arr.length - 1), color);
+          });
+        } else {
+          // フォールバック
+          gradient.addColorStop(0, '#3498DB');
+          gradient.addColorStop(1, '#8E44AD');
+        }
+        
+        fillStyle = gradient;
+        strokeStyle = gradient;
       }
-      
-      fillStyle = gradient;
-      strokeStyle = gradient;
       break;
   }
   
@@ -374,6 +432,9 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
     ctx.fillStyle = background.type === 'color' ? background.color : '#000000';
     ctx.fill();
     
+    // 角度ごとにグラデーションを生成する場合
+    const useIndividualGradients = color.type === 'gradient';
+    
     // 通常の円形バー描画
     for (let i = 0; i < barCount; i++) {
       const angle = i * angleStep + rotation;
@@ -390,6 +451,21 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
       if (color.type === 'frequency') {
         const frequencyRange = 20 * Math.pow(1000, i / barCount);
         fillStyle = colorUtils.getFrequencyColor(frequencyRange, color.frequencyColors);
+      } else if (useIndividualGradients) {
+        // バーごとに独自のグラデーション（中心から外側へ）
+        fillStyle = ctx.createRadialGradient(
+          centerX, centerY, minRadius,
+          centerX, centerY, minRadius + barHeight
+        );
+        
+        if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
+          color.gradient.colors.forEach((color, i, arr) => {
+            fillStyle.addColorStop(i / (arr.length - 1), color);
+          });
+        } else {
+          fillStyle.addColorStop(0, '#3498DB');
+          fillStyle.addColorStop(1, '#8E44AD');
+        }
       }
       
       ctx.fillStyle = fillStyle;
@@ -434,6 +510,10 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
   }
   else {
     // 標準の放射状バー描画（デフォルト）
+    
+    // 角度ごとにグラデーションを生成する場合
+    const useIndividualGradients = color.type === 'gradient';
+    
     for (let i = 0; i < barCount; i++) {
       const angle = i * angleStep + rotation;
       
@@ -449,6 +529,21 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
       if (color.type === 'frequency') {
         const frequencyRange = 20 * Math.pow(1000, i / barCount);
         fillStyle = colorUtils.getFrequencyColor(frequencyRange, color.frequencyColors);
+      } else if (useIndividualGradients) {
+        // バーごとに独自のグラデーション（中心から外側へ）
+        fillStyle = ctx.createRadialGradient(
+          centerX, centerY, minRadius,
+          centerX, centerY, minRadius + barHeight
+        );
+        
+        if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
+          color.gradient.colors.forEach((color, i, arr) => {
+            fillStyle.addColorStop(i / (arr.length - 1), color);
+          });
+        } else {
+          fillStyle.addColorStop(0, '#3498DB');
+          fillStyle.addColorStop(1, '#8E44AD');
+        }
       }
       
       ctx.fillStyle = fillStyle;
@@ -577,6 +672,18 @@ function drawWaveVisualizer(ctx, width, height, dataArray, settings, background)
 function drawWaveformVisualizer(ctx, width, height, dataArray, settings, background) {
   const { color, sensitivity } = settings;
   
+  // データのサイズを調整
+  const adjustedDataArray = new Uint8Array(dataArray.length);
+  const center = 128;
+  
+  // 波形データに変換（周波数データから波形風に変換）
+  for (let i = 0; i < dataArray.length; i++) {
+    // 0-255の範囲を-1から1に変換
+    const normalizedValue = (dataArray[i] / 255 - 0.5) * 2;
+    // センターからの変位を計算
+    adjustedDataArray[i] = center + normalizedValue * center * sensitivity;
+  }
+  
   // 描画色の設定
   let fillStyle;
   
@@ -586,11 +693,18 @@ function drawWaveformVisualizer(ctx, width, height, dataArray, settings, backgro
       break;
       
     case 'gradient':
-      fillStyle = colorUtils.getGradientColor(
-        ctx, width, height, 
-        color.gradient.colors, 
-        color.gradient.angle
-      );
+      fillStyle = ctx.createLinearGradient(0, 0, 0, height);
+      
+      // 色が配列であることを確認
+      if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
+        color.gradient.colors.forEach((color, i, arr) => {
+          fillStyle.addColorStop(i / (arr.length - 1), color);
+        });
+      } else {
+        // フォールバック（色が配列でない場合）
+        fillStyle.addColorStop(0, '#3498DB');
+        fillStyle.addColorStop(1, '#8E44AD');
+      }
       break;
   }
   
@@ -601,31 +715,103 @@ function drawWaveformVisualizer(ctx, width, height, dataArray, settings, backgro
   
   // 波形の描画
   ctx.beginPath();
-  ctx.moveTo(0, centerY);
   
-  // 上部の波形
-  for (let i = 0; i < dataArray.length; i++) {
-    const x = (width / dataArray.length) * i;
-    const value = (dataArray[i] / 255) * sensitivity;
-    const y = centerY - (height / 2) * value;
-    
+  // 波形を滑らかにする
+  const smoothFactor = 0.2; // 平滑化係数
+  const points = [];
+  
+  // データポイントを収集
+  for (let i = 0; i < adjustedDataArray.length; i++) {
+    const x = (width / adjustedDataArray.length) * i;
+    const normalizedValue = (adjustedDataArray[i] - center) / center;
+    const y = centerY - normalizedValue * centerY * sensitivity;
+    points.push({ x, y });
+  }
+  
+  // 上部の波形を描画（平滑化）
+  ctx.beginPath();
+  ctx.moveTo(0, centerY); // 左端で開始
+  
+  // データ間引きとスムージング
+  const skipFactor = Math.max(1, Math.floor(points.length / 200));
+  const filteredPoints = [];
+  
+  for (let i = 0; i < points.length; i += skipFactor) {
+    filteredPoints.push(points[i]);
+  }
+  
+  // 最後のポイントを確実に含める
+  if (filteredPoints[filteredPoints.length-1] !== points[points.length-1]) {
+    filteredPoints.push(points[points.length-1]);
+  }
+  
+  // ベジェ曲線で滑らかに描画
+  for (let i = 0; i < filteredPoints.length; i++) {
     if (i === 0) {
-      ctx.moveTo(x, y);
+      ctx.lineTo(filteredPoints[i].x, filteredPoints[i].y);
+    } else if (i < filteredPoints.length - 1) {
+      // ベジェ曲線で滑らかに
+      const xc = (filteredPoints[i].x + filteredPoints[i + 1].x) / 2;
+      const yc = (filteredPoints[i].y + filteredPoints[i + 1].y) / 2;
+      ctx.quadraticCurveTo(filteredPoints[i].x, filteredPoints[i].y, xc, yc);
     } else {
-      ctx.lineTo(x, y);
+      // 最後のポイント
+      ctx.lineTo(filteredPoints[i].x, filteredPoints[i].y);
     }
   }
   
-  // 下部の波形（反転）
-  for (let i = dataArray.length - 1; i >= 0; i--) {
-    const x = (width / dataArray.length) * i;
-    const value = (dataArray[i] / 255) * sensitivity;
-    const y = centerY + (height / 2) * value;
-    ctx.lineTo(x, y);
+  // 右端に線を引く
+  ctx.lineTo(width, centerY);
+  
+  // 下部の波形を描画（ミラー）
+  for (let i = filteredPoints.length - 1; i >= 0; i--) {
+    const mirrorY = centerY + (centerY - filteredPoints[i].y);
+    if (i === filteredPoints.length - 1) {
+      ctx.lineTo(filteredPoints[i].x, mirrorY);
+    } else if (i > 0) {
+      const xc = (filteredPoints[i].x + filteredPoints[i - 1].x) / 2;
+      const y1 = centerY + (centerY - filteredPoints[i].y);
+      const y2 = centerY + (centerY - filteredPoints[i - 1].y);
+      const yc = (y1 + y2) / 2;
+      ctx.quadraticCurveTo(filteredPoints[i].x, mirrorY, xc, yc);
+    } else {
+      ctx.lineTo(filteredPoints[i].x, mirrorY);
+    }
   }
   
   ctx.closePath();
   ctx.fill();
+  
+  // 周波数に応じた色を使用する場合
+  if (color.type === 'frequency') {
+    // グラデーションを作成するために上部と下部を別々に描画
+    ctx.save();
+    ctx.clip(); // 波形の領域だけに描画を制限
+    
+    // 周波数帯域を分割してグラデーションを作成
+    const bandCount = color.frequencyColors.length - 1;
+    const bandHeight = height / bandCount;
+    
+    for (let i = 0; i < bandCount; i++) {
+      const startY = i * bandHeight;
+      const endY = (i + 1) * bandHeight;
+      
+      // この帯域の色
+      const startColor = color.frequencyColors[i].color;
+      const endColor = color.frequencyColors[i + 1].color;
+      
+      // グラデーションを作成
+      const bandGradient = ctx.createLinearGradient(0, startY, 0, endY);
+      bandGradient.addColorStop(0, startColor);
+      bandGradient.addColorStop(1, endColor);
+      
+      // 帯域を描画
+      ctx.fillStyle = bandGradient;
+      ctx.fillRect(0, startY, width, bandHeight);
+    }
+    
+    ctx.restore();
+  }
 }
 
 // パーティクルビジュアライザーの描画
