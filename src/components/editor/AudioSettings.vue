@@ -310,6 +310,11 @@ const applyEqPreset = (gains) => {
   audioStore.updateEqualizer();
 };
 
+// ループトグルボタン
+const toggleLoopMode = () => {
+  audioStore.toggleLoop();
+};
+
 // タイマーID
 let timeUpdateInterval = null;
 

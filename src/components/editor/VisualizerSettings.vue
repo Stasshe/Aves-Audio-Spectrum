@@ -427,7 +427,6 @@ const visualizerTypes = [
   { id: 'bars', name: 'バー' },
   { id: 'circle', name: '円形' },
   { id: 'wave', name: '波形' },
-  { id: 'waveform', name: '音波' },
   { id: 'particles', name: 'パーティクル' }
 ];
 

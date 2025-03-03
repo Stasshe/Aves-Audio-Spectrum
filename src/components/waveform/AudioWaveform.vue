@@ -1,7 +1,12 @@
 <template>
   <div class="waveform-container" ref="waveformContainer">
-    <canvas ref="waveformCanvas" class="waveform-canvas" height="80"></canvas>
+    <canvas ref="waveformCanvas" class="waveform-canvas" :height="props.height"></canvas>
     <div class="playhead" :style="{ left: `${playheadPosition}%` }"></div>
+    
+    <!-- ミニローディングインジケータ -->
+    <div v-if="isRendering" class="waveform-loading">
+      <div class="waveform-loading-spinner"></div>
+    </div>
   </div>
 </template>
 
@@ -36,6 +41,9 @@ const generateWaveformData = async () => {
   isRendering.value = true;
   
   try {
+    // 波形生成を少し遅延させてローディングアニメーションを表示できるようにする
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     const audioBuffer = audioStore.audioBuffer;
     const channelData = audioBuffer.getChannelData(0); // 左チャンネルを使用
     const samples = 200; // 表示するサンプル数
@@ -190,6 +198,12 @@ onMounted(() => {
     }
   });
 });
+
+// currentTimeが変更されたら、プレイヘッドの位置も更新
+watch(() => audioStore.currentTime, () => {
+  // プレイヘッドの位置を更新（計算済みのplayheadPositionを使用）
+  // Vue の reactive システムがこの監視によって自動的に playheadPosition の再計算と再レンダリングを行う
+});
 </script>
 
 <style scoped>
@@ -215,6 +229,33 @@ onMounted(() => {
   background-color: #ff5722;
   box-shadow: 0 0 4px rgba(255, 87, 34, 0.7);
   pointer-events: none;
-  transition: left 0.1s linear;
+  transition: left 0.05s linear;  /* アニメーションを滑らかに */
+}
+
+/* 波形ローディングインジケータ */
+.waveform-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.waveform-loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

@@ -29,6 +29,16 @@
           <button class="control-button" @click="skipForward" :disabled="!audioFile">
             <span class="icon">⏭</span>
           </button>
+          
+          <!-- ループボタン -->
+          <button
+            class="control-button loop-button"
+            @click="toggleLoop"
+            :disabled="!audioFile"
+            :class="{ 'active': loop }"
+          >
+            <span class="icon">🔁</span>
+          </button>
         </div>
         
         <!-- 音量コントロール -->
@@ -51,6 +61,8 @@
     
     <!-- タイムラインシークバー -->
     <div class="seeker-container">
+      <!-- バーの背景（プログレス表示） -->
+      <div class="seeker-progress" :style="{ width: `${progressPercent}%` }"></div>
       <input 
         type="range"
         class="seeker"
@@ -69,6 +81,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useAudioStore } from '@/stores/audioStore';
 import AudioWaveform from '@/components/waveform/AudioWaveform.vue';
+import { formatTime } from '@/utils/audioUtils';
 
 const audioStore = useAudioStore();
 const previousVolume = ref(1.0);
@@ -78,6 +91,7 @@ let animationFrame = null;
 const audioFile = computed(() => audioStore.audioFile);
 const duration = computed(() => audioStore.duration);
 const isPlaying = computed(() => audioStore.isPlaying);
+const loop = computed(() => audioStore.loop);
 
 // 双方向バインディング用プロパティ
 const currentTimeValue = ref(0);
@@ -86,7 +100,9 @@ const volumeValue = ref(audioStore.volume);
 // 計算プロパティ
 const currentTime = computed(() => audioStore.currentTime);
 const progressPercent = computed(() => {
-  return duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0;
+  if (!duration.value || duration.value <= 0) return 0;
+  const percent = (currentTime.value / duration.value) * 100;
+  return isNaN(percent) ? 0 : Math.max(0, Math.min(percent, 100));
 });
 
 const volumeIcon = computed(() => {
@@ -95,9 +111,11 @@ const volumeIcon = computed(() => {
   return '🔊';
 });
 
-// ストアの値の変更を監視
+// ストアの値の変更を監視（双方向バインディング）
 watch(() => audioStore.currentTime, (newTime) => {
-  currentTimeValue.value = newTime;
+  if (!isNaN(newTime) && isFinite(newTime)) {
+    currentTimeValue.value = newTime;
+  }
 });
 
 watch(() => audioStore.volume, (newVolume) => {
@@ -115,6 +133,11 @@ const togglePlayback = () => {
     audioStore.playAudio();
     startTimeUpdate();
   }
+};
+
+// ループ再生を切り替え
+const toggleLoop = () => {
+  audioStore.toggleLoop();
 };
 
 // 再生位置を変更
@@ -153,15 +176,6 @@ const skipForward = () => {
   audioStore.seekAudio(newTime);
 };
 
-// 時間表示のフォーマット
-const formatTime = (seconds) => {
-  if (isNaN(seconds) || seconds === Infinity || seconds < 0) return '0:00';
-  
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
-  return `${mins}:${secs}`;
-};
-
 // アニメーションフレームを使用して滑らかに更新
 const startTimeUpdate = () => {
   stopTimeUpdate();
@@ -188,6 +202,9 @@ const stopTimeUpdate = () => {
 
 // ライフサイクルフック
 onMounted(() => {
+  // 初期値を設定
+  currentTimeValue.value = audioStore.currentTime;
+  
   // 再生状態を監視
   watch(() => isPlaying.value, (playing) => {
     if (playing) {
@@ -197,6 +214,11 @@ onMounted(() => {
     }
   });
   
+  // 既に再生中なら更新を開始
+  if (isPlaying.value) {
+    startTimeUpdate();
+  }
+  
   // iOSのオーディオ初期化 (インタラクションが必要)
   const handleFirstTouch = () => {
     audioStore.initAudioForIOS();
@@ -205,7 +227,7 @@ onMounted(() => {
   
   document.addEventListener('touchstart', handleFirstTouch);
   
-  // コンポーネントがアンマウントされる前にイベントリスナーを削除するための参照を保存
+  // クリーンアップ
   onBeforeUnmount(() => {
     stopTimeUpdate();
     document.removeEventListener('touchstart', handleFirstTouch);
@@ -326,10 +348,25 @@ onMounted(() => {
 }
 
 .seeker-container {
+  position: relative;
   margin-top: 12px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.seeker-progress {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  background-color: #3498db;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .seeker {
+  position: relative;
   width: 100%;
   height: 4px;
   -webkit-appearance: none;
@@ -337,6 +374,9 @@ onMounted(() => {
   background: #d1d1d1;
   border-radius: 2px;
   outline: none;
+  z-index: 2;
+  opacity: 0.8;
+  cursor: pointer;
 }
 
 .seeker::-webkit-slider-thumb {
@@ -347,9 +387,24 @@ onMounted(() => {
   border-radius: 50%;
   background: #3498db;
   cursor: pointer;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+.seeker::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3498db;
+  cursor: pointer;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
 }
 
 .seeker:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
+}
+
+.loop-button.active {
+  color: #3498db;
+  background-color: rgba(52, 152, 219, 0.1);
 }
 </style>

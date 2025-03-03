@@ -108,7 +108,13 @@ export const useAudioStore = defineStore('audio', {
       videoBitrate: '8000k', // 4000k, 8000k, 16000k
       audioBitrate: '256k', // 128k, 256k, 320k
       duration: null // null = 全体
-    }
+    },
+    
+    // ループ再生設定
+    loop: false,
+    
+    // ローディング状態
+    isLoading: false
   }),
   
   actions: {
@@ -134,6 +140,9 @@ export const useAudioStore = defineStore('audio', {
       if (!file) return false;
       
       try {
+        // ローディング状態を設定
+        this.isLoading = true;
+        
         // 既存のオーディオ接続をクリーンアップ
         this.stopAudio();
         
@@ -162,9 +171,12 @@ export const useAudioStore = defineStore('audio', {
         // イコライザーを初期化
         this.initAudioNodes();
         
+        // ローディング完了
+        this.isLoading = false;
         return true;
       } catch (error) {
         console.error('オーディオファイル読み込みエラー:', error);
+        this.isLoading = false;
         return false;
       }
     },
@@ -222,6 +234,9 @@ export const useAudioStore = defineStore('audio', {
         const source = this.audioContext.createBufferSource();
         source.buffer = this.audioBuffer;
         
+        // ループ設定を適用
+        source.loop = this.loop;
+        
         // 開始位置を設定（範囲を確認して安全な値を設定）
         const safeCurrentTime = Math.max(0, Math.min(this.currentTime, this.duration));
         
@@ -238,13 +253,20 @@ export const useAudioStore = defineStore('audio', {
         
         // 終了時のコールバック
         source.onended = () => {
-          // 自然に終了した場合の処理
-          if (this.isPlaying) {
+          // ループモードでない場合かつ自然に終了した場合
+          if (!this.loop && this.isPlaying) {
             // 曲の終わりに近い場合は再生終了
             const currentPos = this.currentTime;
             if (this.duration - currentPos < 0.5) {
-              this.currentTime = 0;
-              this.isPlaying = false;
+              if (this.loop) {
+                // ループの場合は再度最初から再生
+                this.currentTime = 0;
+                this.playAudio();
+              } else {
+                // 通常再生の場合は停止
+                this.currentTime = 0;
+                this.isPlaying = false;
+              }
             }
           }
         };
@@ -417,10 +439,16 @@ export const useAudioStore = defineStore('audio', {
     
     // 現在の再生時間を更新（アニメーションフレーム用）
     updateCurrentTime() {
-      if (!this.isPlaying || !this.audioContext) return;
+      if (!this.isPlaying || !this.audioContext || !this.startTime) return;
       
       // 開始時間からの経過を計算
       const elapsedTime = this.audioContext.currentTime - this.startTime;
+      
+      if (this.loop) {
+        // ループモードの場合は時間を循環させる
+        this.currentTime = elapsedTime % this.duration;
+        return;
+      }
       
       // 曲の長さを超えた場合は再生を停止
       if (elapsedTime >= this.duration) {
@@ -456,6 +484,18 @@ export const useAudioStore = defineStore('audio', {
       source.buffer = buffer;
       source.connect(this.audioContext.destination);
       source.start(0);
+    },
+    
+    // ループ設定の切り替え
+    toggleLoop() {
+      this.loop = !this.loop;
+      
+      // 再生中なら現在のソースノードにもループ設定を適用
+      if (this.audioSource) {
+        this.audioSource.loop = this.loop;
+      }
+      
+      return this.loop;
     }
   },
   
@@ -465,7 +505,7 @@ export const useAudioStore = defineStore('audio', {
       {
         key: 'aves-audio-settings',
         storage: localStorage,
-        paths: ['visualizerSettings', 'background', 'equalizerBands', 'applyEqToAudio', 'exportSettings', 'volume']
+        paths: ['visualizerSettings', 'background', 'equalizerBands', 'applyEqToAudio', 'exportSettings', 'volume', 'loop']
       }
     ]
   }
