@@ -408,14 +408,16 @@ const verticalAligns = [
 
 // グラデーション色を追加
 const addGradientColor = () => {
-  if (settings.value.color.gradient.colors.length < 5) {
+  if (!Array.isArray(settings.value.color.gradient.colors)) {
+    settings.value.color.gradient.colors = ['#3498DB', '#8E44AD'];
+  } else if (settings.value.color.gradient.colors.length < 5) {
     settings.value.color.gradient.colors.push('#ffffff');
   }
 };
 
 // グラデーション色を削除
 const removeGradientColor = (index) => {
-  if (settings.value.color.gradient.colors.length > 2) {
+  if (Array.isArray(settings.value.color.gradient.colors) && settings.value.color.gradient.colors.length > 2) {
     settings.value.color.gradient.colors.splice(index, 1);
   }
 };

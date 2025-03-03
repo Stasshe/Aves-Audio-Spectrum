@@ -120,7 +120,7 @@ export async function exportVideoFile(audioFile, canvas, settings) {
         text-align: center;
       `;
       const title = document.createElement('h2');
-      title.textContent = 'ビジュアライゼーション作成中...';
+      title.textContent = 'スクリーンショット作成中...';
       title.style.marginBottom = '1rem';
       
       const progressText = document.createElement('p');
@@ -153,43 +153,70 @@ export async function exportVideoFile(audioFile, canvas, settings) {
       modal.appendChild(modalContent);
       document.body.appendChild(modal);
       
-      // キャプチャとGIF生成のプロセス
-      const captureFrames = async () => {
+      // キャプチャのプロセス
+      const captureScreenshot = async () => {
         try {
-          // キャンバス設定
+          progressText.textContent = 'キャプチャ中...';
+          
+          // キャンバスの内容をコピー
           const ctx = previewCanvas.getContext('2d');
+          ctx.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
           
-          // フレーム数と持続時間の計算
-          const fps = settings.fps || 15;
-          const duration = 5; // 5秒の短いプレビュー
-          const totalFrames = fps * duration;
-
-          // フレームをキャプチャするための配列
-          const frames = [];
+          // 高解像度のキャンバスを作成
+          const exportCanvas = document.createElement('canvas');
           
-          // 各フレームをキャプチャ
-          for (let i = 0; i < totalFrames; i++) {
-            // 現在の進行状況を更新
-            progressText.textContent = `フレームをキャプチャ中... (${i+1}/${totalFrames})`;
-            
-            // キャンバスの内容をコピー
-            ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-            ctx.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
-            
-            // フレームデータを保存
-            frames.push(previewCanvas.toDataURL('image/png'));
-            
-            // 次のフレームをレンダリングするための短い遅延
-            await new Promise(r => setTimeout(r, 10));
+          // 解像度に基づいて出力サイズを設定
+          let width, height;
+          switch(settings.resolution) {
+            case '720p':
+              width = 1280;
+              height = 720;
+              break;
+            case '4k':
+              width = 3840;
+              height = 2160;
+              break;
+            default: // 1080p
+              width = 1920;
+              height = 1080;
           }
+          
+          exportCanvas.width = width;
+          exportCanvas.height = height;
+          
+          // 高解像度キャンバスに描画
+          const exportCtx = exportCanvas.getContext('2d');
+          exportCtx.fillStyle = '#000000'; // 黒背景をデフォルトに
+          exportCtx.fillRect(0, 0, width, height);
+          
+          // 現在のキャンバスを高解像度でコピー
+          exportCtx.drawImage(canvas, 0, 0, width, height);
           
           progressText.textContent = 'スクリーンショットを保存中...';
           await new Promise(r => setTimeout(r, 500));
           
+          // フォーマットを選択
+          let imageType = 'image/png';
+          let fileExt = 'png';
+          let quality = 1;
+          
+          if (settings.format === 'jpeg' || settings.format === 'jpg') {
+            imageType = 'image/jpeg';
+            fileExt = 'jpg';
+            quality = 0.9; // JPEG品質
+          }
+          
           // スクリーンショットのダウンロード
+          const dataURL = exportCanvas.toDataURL(imageType, quality);
           const link = document.createElement('a');
-          link.href = frames[0];
-          link.download = 'aves-audio-spectrum.png';
+          link.href = dataURL;
+          
+          // 現在の日付と時刻を取得してファイル名に使用
+          const now = new Date();
+          const timestamp = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+          
+          // ファイル名を設定
+          link.download = `aves_audio_spectrum_${timestamp}.${fileExt}`;
           link.click();
           
           // すべて完了したら終了
@@ -224,7 +251,7 @@ export async function exportVideoFile(audioFile, canvas, settings) {
       };
       
       // キャプチャプロセスを開始
-      setTimeout(captureFrames, 500);
+      setTimeout(captureScreenshot, 500);
       
     } catch (error) {
       reject(error);

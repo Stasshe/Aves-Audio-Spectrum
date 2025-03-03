@@ -191,13 +191,19 @@ const setBackgroundType = (type) => {
 // グラデーション色の追加
 const addGradientColor = () => {
   if (bg.value.gradient.colors.length < 5) {
-    audioStore.background.gradient.colors.push('#ffffff');
+    // 配列が存在することを確認
+    if (!Array.isArray(bg.value.gradient.colors)) {
+      audioStore.background.gradient.colors = ['#3498DB', '#8E44AD'];
+    } else {
+      audioStore.background.gradient.colors.push('#ffffff');
+    }
   }
 };
 
 // グラデーション色の削除
 const removeGradientColor = (index) => {
-  if (bg.value.gradient.colors.length > 2) {
+  // 配列が存在し、2色以上あることを確認
+  if (Array.isArray(bg.value.gradient.colors) && bg.value.gradient.colors.length > 2) {
     audioStore.background.gradient.colors.splice(index, 1);
   }
 };
@@ -234,7 +240,8 @@ const applyPreset = (preset) => {
     audioStore.background.color = preset.color;
   } else if (preset.type === 'gradient') {
     audioStore.background.type = 'gradient';
-    audioStore.background.gradient.colors = [...preset.colors];
+    // 配列のディープコピーを確実に行う
+    audioStore.background.gradient.colors = JSON.parse(JSON.stringify(preset.colors));
     audioStore.background.gradient.angle = preset.angle;
   }
 };

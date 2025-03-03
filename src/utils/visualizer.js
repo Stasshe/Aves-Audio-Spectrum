@@ -15,9 +15,16 @@ const colorUtils = {
       Math.sin(angle * Math.PI / 180) * height
     );
     
-    colors.forEach((color, i) => {
-      gradient.addColorStop(i / (colors.length - 1), color);
-    });
+    // 色が配列であることを確認
+    if (Array.isArray(colors) && colors.length > 0) {
+      colors.forEach((color, i) => {
+        gradient.addColorStop(i / (colors.length - 1), color);
+      });
+    } else {
+      // フォールバック（色が配列でない場合）
+      gradient.addColorStop(0, '#3498DB');
+      gradient.addColorStop(1, '#8E44AD');
+    }
     
     return gradient;
   },
@@ -150,11 +157,19 @@ function drawBarsVisualizer(ctx, width, height, dataArray, settings, background)
       break;
       
     case 'gradient':
-      fillStyle = colorUtils.getGradientColor(
-        ctx, width, height, 
-        color.gradient.colors, 
-        color.gradient.angle
-      );
+      // バーのグラデーションは全体に対して適用する
+      fillStyle = ctx.createLinearGradient(0, height, 0, 0);
+      
+      // 色が配列であることを確認
+      if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
+        color.gradient.colors.forEach((color, i, arr) => {
+          fillStyle.addColorStop(i / (arr.length - 1), color);
+        });
+      } else {
+        // フォールバック（色が配列でない場合）
+        fillStyle.addColorStop(0, '#3498DB');
+        fillStyle.addColorStop(1, '#8E44AD');
+      }
       break;
   }
   
@@ -231,6 +246,9 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
   const rotation = circle.rotation * (Math.PI / 180);
   const barCount = Math.floor(dataArray.length / 4); // 解像度を適切に調整
   
+  // 感度を調整 - 半径を超えないように最大値を制限
+  const maxAmplitude = radius * 0.5; // 半径の50%を最大振幅とする
+  
   // 描画色の設定
   let fillStyle;
   
@@ -243,12 +261,19 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
       // 円形グラデーション
       const gradient = ctx.createRadialGradient(
         centerX, centerY, 0,
-        centerX, centerY, radius
+        centerX, centerY, radius * 1.5
       );
       
-      color.gradient.colors.forEach((color, i) => {
-        gradient.addColorStop(i / (color.gradient.colors.length - 1), color);
-      });
+      // 色が配列であることを確認
+      if (Array.isArray(color.gradient.colors) && color.gradient.colors.length > 0) {
+        color.gradient.colors.forEach((color, i, arr) => {
+          gradient.addColorStop(i / (arr.length - 1), color);
+        });
+      } else {
+        // フォールバック（色が配列でない場合）
+        gradient.addColorStop(0, '#3498DB');
+        gradient.addColorStop(1, '#8E44AD');
+      }
       
       fillStyle = gradient;
       break;
@@ -268,8 +293,8 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
     // データ配列から対応する値を取得
     const value = dataArray[i] / 255;
     
-    // 半径を計算
-    const barHeight = radius * value * sensitivity;
+    // 半径を計算 - 最大振幅を制限
+    const barHeight = Math.min(maxAmplitude * value * sensitivity, maxAmplitude);
     
     // 周波数に応じた色を使用
     if (color.type === 'frequency') {
