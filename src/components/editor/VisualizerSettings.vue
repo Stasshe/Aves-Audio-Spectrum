@@ -154,17 +154,62 @@
       <h3 class="font-medium text-sm mb-2 mt-4">円形設定</h3>
       
       <div class="mb-4">
-        <label class="block text-sm mb-1">半径</label>
+        <label class="block text-sm mb-1">テーマ</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button 
+            v-for="theme in circleThemes" 
+            :key="theme.id"
+            @click="settings.circle.theme = theme.id"
+            class="btn text-xs p-1" 
+            :class="settings.circle.theme === theme.id ? 'btn-primary' : 'btn-secondary'"
+          >
+            {{ theme.name }}
+          </button>
+        </div>
+      </div>
+      
+      <div class="mb-4">
+        <label class="block text-sm mb-1">最大半径</label>
         <div class="flex gap-2 items-center">
           <input 
             type="range" 
             v-model.number="settings.circle.radius" 
-            min="1" 
+            min="50" 
             max="500" 
             step="10" 
             class="flex-1"
           />
           <span class="text-sm w-12 text-right">{{ settings.circle.radius }}px</span>
+        </div>
+      </div>
+      
+      <div class="mb-4">
+        <label class="block text-sm mb-1">最小半径</label>
+        <div class="flex gap-2 items-center">
+          <input 
+            type="range" 
+            v-model.number="settings.circle.minRadius" 
+            :min="10" 
+            :max="settings.circle.radius - 10" 
+            step="5" 
+            class="flex-1"
+          />
+          <span class="text-sm w-12 text-right">{{ settings.circle.minRadius }}px</span>
+        </div>
+      </div>
+      
+      <div v-if="settings.circle.theme === 'outline' || settings.circle.theme === 'outlineFilled'" class="mb-4">
+        <label class="block text-sm mb-1">線の太さ</label>
+        <div class="flex gap-2 items-center">
+          <input 
+            type="range" 
+            v-model.number="settings.circle.lineWidth" 
+            min="1" 
+            max="10" 
+            step="0.5" 
+            class="flex-1"
+          />
+          <span class="text-sm w-12 text-right">{{ settings.circle.lineWidth }}px</span>
         </div>
       </div>
       
@@ -426,4 +471,11 @@ const removeGradientColor = (index) => {
 const formatFrequency = (freq) => {
   return freq >= 1000 ? `${freq / 1000}kHz` : `${freq}Hz`;
 };
+
+// 円形テーマ
+const circleThemes = [
+  { id: 'default', name: 'デフォルト' },
+  { id: 'outline', name: 'アウトライン' },
+  { id: 'outlineFilled', name: 'アウトライン塗りつぶし' }
+];
 </script>

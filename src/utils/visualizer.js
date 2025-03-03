@@ -176,22 +176,34 @@ function drawBarsVisualizer(ctx, width, height, dataArray, settings, background)
   // 解析データのステップサイズを計算
   const analyzerStep = Math.ceil(dataArray.length / barCount);
   
+  // 最大値を追跡して正規化に使用
+  let maxValue = 0;
+  for (let i = 0; i < dataArray.length; i++) {
+    if (dataArray[i] > maxValue) maxValue = dataArray[i];
+  }
+  
   // 各バーを描画
   for (let i = 0; i < barCount; i++) {
     // 周波数帯域の振幅を取得
     let sum = 0;
+    let count = 0;
     for (let j = 0; j < analyzerStep; j++) {
       const index = i * analyzerStep + j;
       if (index < dataArray.length) {
         sum += dataArray[index];
+        count++;
       }
     }
     
     // 平均値を計算し、0-1の範囲に正規化
-    const average = sum / analyzerStep / 255;
+    const average = count > 0 ? sum / count / 255 : 0;
     
-    // 感度を適用
-    let barHeight = Math.max(average * sensitivity * height, bars.minHeight);
+    // 感度を適用（強化版）- より大きな値になるよう指数関数的にマッピング
+    const scaledValue = Math.pow(average, 0.8); // 小さな値を大きく見せるための指数
+    let barHeight = Math.max(scaledValue * sensitivity * height * 1.5, bars.minHeight);
+    
+    // バーを画面の高さに収める
+    barHeight = Math.min(barHeight, height);
     
     // バーX座標
     const x = startX + i * (barWidth + barSpacing);
@@ -242,26 +254,31 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
   const { circle, color, sensitivity } = settings;
   const centerX = width * circle.centerX;
   const centerY = height * circle.centerY;
-  const radius = circle.radius;
+  
+  // 基本半径と最大半径（新機能）
+  const minRadius = circle.minRadius || circle.radius * 0.5; // デフォルトは半分の半径
+  const maxRadius = circle.radius;
+  
   const rotation = circle.rotation * (Math.PI / 180);
   const barCount = Math.floor(dataArray.length / 4); // 解像度を適切に調整
   
-  // 感度を調整 - 半径を超えないように最大値を制限
-  const maxAmplitude = radius * 0.5; // 半径の50%を最大振幅とする
+  // 感度を調整 - 振幅計算用
+  const maxAmplitude = (maxRadius - minRadius) * 0.9;
   
   // 描画色の設定
-  let fillStyle;
+  let fillStyle, strokeStyle;
   
   switch (color.type) {
     case 'solid':
       fillStyle = color.solid;
+      strokeStyle = color.solid;
       break;
       
     case 'gradient':
       // 円形グラデーション
       const gradient = ctx.createRadialGradient(
-        centerX, centerY, 0,
-        centerX, centerY, radius * 1.5
+        centerX, centerY, minRadius * 0.8,
+        centerX, centerY, maxRadius * 1.2
       );
       
       // 色が配列であることを確認
@@ -276,6 +293,7 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
       }
       
       fillStyle = gradient;
+      strokeStyle = gradient;
       break;
   }
   
@@ -285,61 +303,192 @@ function drawCircleVisualizer(ctx, width, height, dataArray, settings, backgroun
   // ミラーモードの場合は半円だけ描画
   const endAngle = circle.mirrorMode ? Math.PI : Math.PI * 2;
   
-  for (let i = 0; i < barCount; i++) {
-    const angle = i * angleStep + rotation;
+  // 選択されたテーマに基づいて描画（新機能）
+  if (circle.theme === 'outline' || circle.theme === 'outlineFilled') {
+    // 外輪郭型描画
+    ctx.beginPath();
     
-    if (angle > endAngle) break;
-    
-    // データ配列から対応する値を取得
-    const value = dataArray[i] / 255;
-    
-    // 半径を計算 - 最大振幅を制限
-    const barHeight = Math.min(maxAmplitude * value * sensitivity, maxAmplitude);
-    
-    // 周波数に応じた色を使用
-    if (color.type === 'frequency') {
-      // この帯域の中央周波数を概算 (20Hz - 20kHz の対数スケール)
-      const frequencyRange = 20 * Math.pow(1000, i / barCount);
-      fillStyle = colorUtils.getFrequencyColor(frequencyRange, color.frequencyColors);
+    for (let i = 0; i < barCount; i++) {
+      const angle = i * angleStep + rotation;
+      
+      if (angle > endAngle) break;
+      
+      // データ配列から対応する値を取得
+      const value = dataArray[i] / 255;
+      
+      // 半径を計算 - 最小半径から振幅を加算
+      const barRadius = minRadius + Math.min(maxAmplitude * value * sensitivity, maxAmplitude);
+      
+      // 周波数に応じた色を使用
+      if (color.type === 'frequency') {
+        const frequencyRange = 20 * Math.pow(1000, i / barCount);
+        strokeStyle = colorUtils.getFrequencyColor(frequencyRange, color.frequencyColors);
+        ctx.strokeStyle = strokeStyle;
+      } else {
+        ctx.strokeStyle = strokeStyle;
+      }
+      
+      // 最初のポイントは移動、以降は線を引く
+      if (i === 0) {
+        ctx.moveTo(
+          centerX + Math.cos(angle) * barRadius,
+          centerY + Math.sin(angle) * barRadius
+        );
+      } else {
+        ctx.lineTo(
+          centerX + Math.cos(angle) * barRadius,
+          centerY + Math.sin(angle) * barRadius
+        );
+      }
+      
+      // ミラーモードの場合は反対側にも描画
+      if (circle.mirrorMode && i === barCount - 1) {
+        for (let j = barCount - 1; j >= 0; j--) {
+          const mirrorAngle = Math.PI * 2 - (j * angleStep + rotation);
+          const mirrorValue = dataArray[j] / 255;
+          const mirrorRadius = minRadius + Math.min(maxAmplitude * mirrorValue * sensitivity, maxAmplitude);
+          
+          ctx.lineTo(
+            centerX + Math.cos(mirrorAngle) * mirrorRadius,
+            centerY + Math.sin(mirrorAngle) * mirrorRadius
+          );
+        }
+      }
     }
     
-    ctx.fillStyle = fillStyle;
+    // 線の太さとスタイル設定
+    ctx.lineWidth = circle.lineWidth || 2;
     
-    // バーを描画
+    // 塗りつぶすかどうか
+    if (circle.theme === 'outlineFilled') {
+      ctx.fillStyle = fillStyle;
+      ctx.fill();
+    }
+    
+    ctx.stroke();
+  } 
+  else if (circle.theme === 'hollow') {
+    // 中空型円形描画
     ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.lineTo(
-      centerX + Math.cos(angle) * (radius + barHeight),
-      centerY + Math.sin(angle) * (radius + barHeight)
-    );
-    ctx.arc(
-      centerX, centerY,
-      radius + barHeight,
-      angle,
-      angle + angleStep,
-      false
-    );
-    ctx.lineTo(centerX, centerY);
+    ctx.arc(centerX, centerY, minRadius, 0, Math.PI * 2);
+    ctx.fillStyle = background.type === 'color' ? background.color : '#000000';
     ctx.fill();
     
-    // ミラーモードの場合は反対側にも描画
-    if (circle.mirrorMode) {
+    // 通常の円形バー描画
+    for (let i = 0; i < barCount; i++) {
+      const angle = i * angleStep + rotation;
+      
+      if (angle > endAngle) break;
+      
+      // データ配列から対応する値を取得
+      const value = dataArray[i] / 255;
+      
+      // 半径を計算 - 最大振幅を制限
+      const barHeight = Math.min(maxAmplitude * value * sensitivity, maxAmplitude);
+      
+      // 周波数に応じた色を使用
+      if (color.type === 'frequency') {
+        const frequencyRange = 20 * Math.pow(1000, i / barCount);
+        fillStyle = colorUtils.getFrequencyColor(frequencyRange, color.frequencyColors);
+      }
+      
+      ctx.fillStyle = fillStyle;
+      
+      // バーを描画
       ctx.beginPath();
-      const mirrorAngle = Math.PI * 2 - angle;
       ctx.moveTo(centerX, centerY);
       ctx.lineTo(
-        centerX + Math.cos(mirrorAngle) * (radius + barHeight),
-        centerY + Math.sin(mirrorAngle) * (radius + barHeight)
+        centerX + Math.cos(angle) * (minRadius + barHeight),
+        centerY + Math.sin(angle) * (minRadius + barHeight)
       );
       ctx.arc(
         centerX, centerY,
-        radius + barHeight,
-        mirrorAngle,
-        mirrorAngle - angleStep,
-        true
+        minRadius + barHeight,
+        angle,
+        angle + angleStep,
+        false
       );
       ctx.lineTo(centerX, centerY);
       ctx.fill();
+      
+      // ミラーモードの場合は反対側にも描画
+      if (circle.mirrorMode) {
+        ctx.beginPath();
+        const mirrorAngle = Math.PI * 2 - angle;
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(
+          centerX + Math.cos(mirrorAngle) * (minRadius + barHeight),
+          centerY + Math.sin(mirrorAngle) * (minRadius + barHeight)
+        );
+        ctx.arc(
+          centerX, centerY,
+          minRadius + barHeight,
+          mirrorAngle,
+          mirrorAngle - angleStep,
+          true
+        );
+        ctx.lineTo(centerX, centerY);
+        ctx.fill();
+      }
+    }
+  }
+  else {
+    // 標準の放射状バー描画（デフォルト）
+    for (let i = 0; i < barCount; i++) {
+      const angle = i * angleStep + rotation;
+      
+      if (angle > endAngle) break;
+      
+      // データ配列から対応する値を取得
+      const value = dataArray[i] / 255;
+      
+      // 半径を計算 - 最大振幅を制限
+      const barHeight = Math.min(maxAmplitude * value * sensitivity, maxAmplitude);
+      
+      // 周波数に応じた色を使用
+      if (color.type === 'frequency') {
+        const frequencyRange = 20 * Math.pow(1000, i / barCount);
+        fillStyle = colorUtils.getFrequencyColor(frequencyRange, color.frequencyColors);
+      }
+      
+      ctx.fillStyle = fillStyle;
+      
+      // バーを描画
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(
+        centerX + Math.cos(angle) * (minRadius + barHeight),
+        centerY + Math.sin(angle) * (minRadius + barHeight)
+      );
+      ctx.arc(
+        centerX, centerY,
+        minRadius + barHeight,
+        angle,
+        angle + angleStep,
+        false
+      );
+      ctx.lineTo(centerX, centerY);
+      ctx.fill();
+      
+      // ミラーモードの場合は反対側にも描画
+      if (circle.mirrorMode) {
+        ctx.beginPath();
+        const mirrorAngle = Math.PI * 2 - angle;
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(
+          centerX + Math.cos(mirrorAngle) * (minRadius + barHeight),
+          centerY + Math.sin(mirrorAngle) * (minRadius + barHeight)
+        );
+        ctx.arc(
+          centerX, centerY,
+          minRadius + barHeight,
+          mirrorAngle,
+          mirrorAngle - angleStep,
+          true
+        );
+        ctx.lineTo(centerX, centerY);
+        ctx.fill();
+      }
     }
   }
 }
