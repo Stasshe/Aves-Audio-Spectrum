@@ -7,10 +7,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'primary': '#2C3E50',
-        'secondary': '#3498DB',
-        'accent': '#16A085',
-        'background': '#f8f9fa',
+        primary: 'var(--color-primary)',
+        secondary: 'var(--color-secondary)',
+        background: '#f9fafb',
       },
       fontFamily: {
         sans: ['Noto Sans JP', 'sans-serif'],

@@ -1,7 +1,8 @@
 /**
  * ビデオエクスポート機能を提供するユーティリティ
  */
-import { createFFmpeg, fetchFile } from 'ffmpeg.wasm';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { saveAs } from 'file-saver';
 
 // FFmpegのロード状態を管理
@@ -11,11 +12,18 @@ let ffmpegInstance = null;
 // FFmpegのロード
 async function loadFFmpeg() {
   if (!ffmpegLoaded) {
-    ffmpegInstance = createFFmpeg({
-      log: false,
-      corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+    ffmpegInstance = new FFmpeg();
+    
+    // コア、WAASMファイルの読み込み
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.3/dist/umd';
+    const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+    const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+    
+    await ffmpegInstance.load({
+      coreURL,
+      wasmURL
     });
-    await ffmpegInstance.load();
+    
     ffmpegLoaded = true;
   }
   return ffmpegInstance;
@@ -56,7 +64,7 @@ export async function exportVideoFile(audioFile, canvas, settings) {
     progressText.textContent = 'オーディオファイルを処理中...';
     const audioData = await fetchFile(audioFile);
     const audioName = 'input.' + audioFile.name.split('.').pop();
-    ffmpeg.FS('writeFile', audioName, audioData);
+    await ffmpeg.writeFile(audioName, audioData);
     
     // フレームレート・解像度設定
     const { width, height, fps, format, videoBitrate } = settings;
@@ -100,7 +108,8 @@ export async function exportVideoFile(audioFile, canvas, settings) {
       const frameData = offscreenCanvas.toDataURL('image/jpeg', 0.9);
       const base64Data = frameData.replace(/^data:image\/jpeg;base64,/, '');
       const frameFileName = `frame${i.toString().padStart(6, '0')}.jpg`;
-      ffmpeg.FS('writeFile', frameFileName, Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)));
+      const frameUint8Array = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+      await ffmpeg.writeFile(frameFileName, frameUint8Array);
       
       // 定期的にUIを更新させるため
       if (i % 10 === 0) {
@@ -141,12 +150,14 @@ export async function exportVideoFile(audioFile, canvas, settings) {
     }
     
     // FFmpegでエンコード実行
-    await ffmpeg.run(...ffmpegCommand);
+    await ffmpeg.exec(ffmpegCommand);
     
     // 出力ファイルを取得
     progressText.textContent = 'ファイルを準備中...';
-    const data = ffmpeg.FS('readFile', outputFileName);
-    const blob = new Blob([data.buffer], { type: format === 'mp4' ? 'video/mp4' : (format === 'webm' ? 'video/webm' : 'image/gif') });
+    const outputData = await ffmpeg.readFile(outputFileName);
+    const blob = new Blob([outputData.buffer], { 
+      type: format === 'mp4' ? 'video/mp4' : (format === 'webm' ? 'video/webm' : 'image/gif')
+    });
     
     // ダウンロード
     const fileName = `audio-spectrum.${format}`;
@@ -154,12 +165,13 @@ export async function exportVideoFile(audioFile, canvas, settings) {
     
     // テンポラリファイルの削除
     progressText.textContent = 'クリーンアップ中...';
-    ffmpeg.FS('unlink', audioName);
-    ffmpeg.FS('unlink', outputFileName);
+    await ffmpeg.deleteFile(audioName);
+    await ffmpeg.deleteFile(outputFileName);
+    
     for (let i = 0; i < frameCount; i++) {
       const frameFileName = `frame${i.toString().padStart(6, '0')}.jpg`;
       try {
-        ffmpeg.FS('unlink', frameFileName);
+        await ffmpeg.deleteFile(frameFileName);
       } catch (e) {
         // ファイルが見つからなくてもエラーにしない
       }
