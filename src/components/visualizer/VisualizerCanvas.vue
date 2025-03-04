@@ -146,24 +146,24 @@ const drawBackground = () => {
       
     case 'image':
       // 画像背景
-      if (background.image) {
+      if (background.value.image) {
         try {
           // 画像を保持する変数が必要
-          if (!background._imageElement) {
-            background._imageElement = new Image();
-            background._imageElement.src = background.image;
-            background._imageElement.onload = () => {
+          if (!background.value.image) {
+            background.value.image = new Image();
+            background.value.image.src = background.image;
+            background.value.image.onload = () => {
               drawBackground(); // 画像読み込み完了時に再描画
             };
           }
           
           // 画像が読み込まれていれば描画
-          if (background._imageElement.complete && background._imageElement.naturalWidth > 0) {
+          if (background.value.image.complete && background.value.image.naturalWidth > 0) {
             ctx.globalAlpha = background.opacity || 1;
             
             // 画像をキャンバスサイズに合わせて描画
             ctx.drawImage(
-              background._imageElement,
+              background.value.image,
               0, 0,
               canvasWidth.value,
               canvasHeight.value
