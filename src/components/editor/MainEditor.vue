@@ -2,8 +2,15 @@
   <div class="main-editor">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <!-- プレビュー領域 -->
-      <div class="col-span-2 bg-gray-900 visualizer-wrapper rounded-xl overflow-hidden">
+      <div class="col-span-2 bg-gray-900 visualizer-wrapper rounded-xl overflow-hidden relative">
+        <!-- ビジュアライザーキャンバス -->
         <visualizer-canvas ref="visualizerCanvas" />
+        
+        <!-- ローディングオーバーレイ -->
+        <div v-if="isLoading" class="loading-overlay">
+          <div class="loading-spinner"></div>
+          <p class="loading-text">オーディオを解析中...</p>
+        </div>
       </div>
       
       <!-- 設定領域 -->
@@ -40,12 +47,18 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { useAudioStore } from '@/stores/audioStore';
 import VisualizerCanvas from '@/components/visualizer/VisualizerCanvas.vue';
 import AudioSettings from '@/components/editor/AudioSettings.vue';
 import VisualizerSettings from '@/components/editor/VisualizerSettings.vue';
 import BackgroundSettings from '@/components/editor/BackgroundSettings.vue';
 import ExportPanel from '@/components/editor/ExportPanel.vue';
+
+const audioStore = useAudioStore();
+
+// オーディオストアからローディング状態を監視
+const isLoading = computed(() => audioStore.isLoading);
 
 // タブ設定
 const tabs = [
@@ -90,5 +103,45 @@ const visualizerCanvas = ref(null);
   min-height: 400px;
   max-height: 60vh;
   overflow-y: auto;
+}
+
+/* ローディングオーバーレイスタイル */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 100;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+}
+
+.loading-text {
+  margin-top: 16px;
+  color: white;
+  font-size: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

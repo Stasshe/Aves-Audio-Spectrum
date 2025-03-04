@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div id="audio-settings-component">
     <div class="mb-4">
       <label class="block text-sm font-medium mb-2">オーディオファイル</label>
       <div v-if="!audioFile" class="border-2 border-dashed border-gray-300 p-4 text-center rounded-lg">
@@ -148,6 +148,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useAudioStore } from '@/stores/audioStore';
 import AudioWaveform from '@/components/waveform/AudioWaveform.vue';
+import { formatTime, formatFileSize, formatFrequency, isSupportedAudioFormat } from '@/utils/audioUtils';
 
 const audioStore = useAudioStore();
 
@@ -174,47 +175,25 @@ const handleFileChange = async (event) => {
   if (!files || files.length === 0) return;
   
   const file = files[0];
-  if (!file.type.startsWith('audio/')) {
+  if (!file.type.startsWith('audio/') && !isSupportedAudioFormat(file)) {
     alert('対応していないファイル形式です。オーディオファイルを選択してください。');
     return;
   }
   
   try {
-    // オーディオコンテキストとソースノードの設定
-    if (!audioStore.audioContext) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      audioStore.audioContext = new AudioContext();
-    }
-    
     // ファイルをストアに保存
     audioStore.setAudioFile(file);
     
-    // ファイルを読み込んでバッファに変換
-    const arrayBuffer = await file.arrayBuffer();
-    const audioBuffer = await audioStore.audioContext.decodeAudioData(arrayBuffer);
-    
-    // オーディオストアを更新
-    audioStore.audioBuffer = audioBuffer;
-    audioStore.duration = audioBuffer.duration;
-    audioStore.currentTime = 0;
-    
-    // メタデータを更新
-    audioStore.updateAudioMetadata({
-      duration: audioBuffer.duration
-    });
-    
-    // 既存の接続を解除
-    if (audioStore.audioSource) {
-      audioStore.audioSource.disconnect();
-      audioStore.audioSource = null;
+    // ファイルをロード
+    const success = await audioStore.loadAudioFile(file);
+    if (!success) {
+      alert('オーディオファイルのロードに失敗しました');
+      audioStore.setAudioFile(null);
     }
-    
-    // イコライザーノードを初期化
-    initEqualizerNodes();
-    
   } catch (error) {
     console.error('オーディオファイル読み込みエラー:', error);
     alert('オーディオファイルの読み込み中にエラーが発生しました。');
+    audioStore.setAudioFile(null);
   }
 };
 
@@ -223,14 +202,8 @@ const removeAudioFile = () => {
   // 再生停止
   stopPlayback();
   
-  // リソース解放
-  if (audioStore.audioSource) {
-    audioStore.audioSource.disconnect();
-    audioStore.audioSource = null;
-  }
-  
-  // ストアの状態をリセット
-  audioStore.audioFile = null;
+  // ストアのオーディオファイル情報をクリア
+  audioStore.setAudioFile(null);
   audioStore.audioBuffer = null;
   audioStore.duration = 0;
   audioStore.currentTime = 0;
@@ -244,131 +217,27 @@ const removeAudioFile = () => {
 // 再生/一時停止の切り替え
 const togglePlayback = () => {
   if (isPlaying.value) {
-    pauseAudio();
+    audioStore.pauseAudio();
+    stopTimeUpdate();
   } else {
-    playAudio();
-  }
-};
-
-// オーディオ再生
-const playAudio = async () => {
-  if (!audioStore.audioBuffer || isPlaying.value) return;
-  
-  try {
-    // AudioContextを再開（一時停止状態の場合）
-    if (audioStore.audioContext.state === 'suspended') {
-      await audioStore.audioContext.resume();
-    }
-    
-    // 新しいソースノードを作成
-    const source = audioStore.audioContext.createBufferSource();
-    source.buffer = audioStore.audioBuffer;
-    
-    // 再生位置を設定
-    const offset = audioStore.currentTime;
-    
-    // ゲインノードを設定（ボリューム制御用）
-    if (!audioStore.gainNode) {
-      audioStore.gainNode = audioStore.audioContext.createGain();
-    }
-    audioStore.gainNode.gain.value = audioStore.volume;
-    
-    // アナライザーノードを設定（ビジュアライザー用）
-    if (!audioStore.analyser) {
-      audioStore.analyser = audioStore.audioContext.createAnalyser();
-      audioStore.analyser.fftSize = audioStore.visualizerSettings.fftSize;
-      audioStore.analyser.smoothingTimeConstant = audioStore.visualizerSettings.smoothingTimeConstant;
-    }
-    
-    // イコライザーノードに接続
-    if (audioStore.applyEqToAudio && audioStore.eqNodes) {
-      source.connect(audioStore.eqNodes[0]);
-      audioStore.eqNodes[audioStore.eqNodes.length - 1].connect(audioStore.gainNode);
-    } else {
-      source.connect(audioStore.gainNode);
-    }
-    
-    audioStore.gainNode.connect(audioStore.analyser);
-    audioStore.analyser.connect(audioStore.audioContext.destination);
-    
-    // 再生開始
-    source.start(0, offset);
-    audioStore.audioSource = source;
-    audioStore.isPlaying = true;
-    
-    // 再生終了時の処理
-    source.onended = () => {
-      audioStore.isPlaying = false;
-      audioStore.currentTime = 0;
-    };
-    
-    // 現在時間を更新する定期実行
+    audioStore.playAudio();
     startTimeUpdate();
-    
-  } catch (error) {
-    console.error('オーディオ再生エラー:', error);
   }
 };
 
-// オーディオ一時停止
-const pauseAudio = () => {
-  if (!isPlaying.value) return;
-  
-  try {
-    // AudioContextを一時停止
-    audioStore.audioContext.suspend();
-    audioStore.isPlaying = false;
-    
-    // 定期更新を停止
-    stopTimeUpdate();
-  } catch (error) {
-    console.error('オーディオ一時停止エラー:', error);
-  }
-};
-
-// オーディオ停止
+// 再生停止
 const stopPlayback = () => {
-  if (!audioStore.audioSource) return;
-  
-  try {
-    // 再生を停止
-    audioStore.audioSource.stop();
-    audioStore.audioSource.disconnect();
-    audioStore.audioSource = null;
-    audioStore.isPlaying = false;
-    audioStore.currentTime = 0;
-    
-    // 定期更新を停止
-    stopTimeUpdate();
-  } catch (error) {
-    console.error('オーディオ停止エラー:', error);
-  }
+  audioStore.stopAudio();
 };
 
 // 再生位置の変更
 const seekAudio = () => {
-  if (!audioStore.audioBuffer) return;
-  
-  const wasPlaying = isPlaying.value;
-  
-  // 再生中なら一度停止
-  if (wasPlaying) {
-    stopPlayback();
-  }
-  
-  // 再生していた場合は新しい位置から再開
-  if (wasPlaying) {
-    setTimeout(() => {
-      playAudio();
-    }, 50);
-  }
+  audioStore.seekAudio(currentTime.value);
 };
 
 // 音量の更新
 const updateVolume = () => {
-  if (audioStore.gainNode) {
-    audioStore.gainNode.gain.value = volume.value;
-  }
+  audioStore.setVolume(volume.value);
 };
 
 // イコライザーの初期化
@@ -440,29 +309,12 @@ const applyEqPreset = (gains) => {
       band.gain = gains[index];
     }
   });
-  updateEqualizer();
+  audioStore.updateEqualizer();
 };
 
-// 時間表示のフォーマット
-const formatTime = (seconds) => {
-  if (isNaN(seconds) || seconds === Infinity) return '0:00';
-  
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
-  return `${mins}:${secs}`;
-};
-
-// ファイルサイズのフォーマット
-const formatFileSize = (bytes) => {
-  if (bytes < 1024) return bytes + ' B';
-  else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  else return (bytes / 1048576).toFixed(1) + ' MB';
-};
-
-// 周波数表示のフォーマット
-const formatFrequency = (hz) => {
-  if (hz < 1000) return hz + ' Hz';
-  else return (hz / 1000) + ' kHz';
+// ループトグルボタン
+const toggleLoopMode = () => {
+  audioStore.toggleLoop();
 };
 
 // タイマーID
@@ -472,27 +324,32 @@ let timeUpdateInterval = null;
 const startTimeUpdate = () => {
   stopTimeUpdate();
   
-  timeUpdateInterval = setInterval(() => {
-    if (!isPlaying.value) return;
-    
-    const now = audioStore.audioContext.currentTime;
-    const offset = audioStore.currentTime;
-    const elapsed = now - audioStore.startTime + offset;
-    
-    if (elapsed >= audioStore.duration) {
-      stopPlayback();
+  // requestAnimationFrameを使用する方法に変更
+  const updateTimeAnimated = () => {
+    if (!isPlaying.value) {
+      stopTimeUpdate();
       return;
     }
     
-    audioStore.currentTime = Math.min(elapsed, audioStore.duration);
-  }, 100);
+    // AudioStore内のupdateCurrentTimeを使用
+    audioStore.updateCurrentTime();
+    
+    // 次のフレームをリクエスト
+    timeUpdateFrame = requestAnimationFrame(updateTimeAnimated);
+  };
+  
+  // アニメーションフレームを使用
+  timeUpdateFrame = requestAnimationFrame(updateTimeAnimated);
 };
+
+// アニメーションフレームを保存する変数
+let timeUpdateFrame = null;
 
 // 再生時間の定期更新を停止
 const stopTimeUpdate = () => {
-  if (timeUpdateInterval) {
-    clearInterval(timeUpdateInterval);
-    timeUpdateInterval = null;
+  if (timeUpdateFrame) {
+    cancelAnimationFrame(timeUpdateFrame);
+    timeUpdateFrame = null;
   }
 };
 
@@ -519,6 +376,15 @@ onMounted(() => {
   // コンポーネントにドラッグ&ドロップイベントリスナーを設定
   document.addEventListener('dragover', handleDragOver);
   document.addEventListener('drop', handleDrop);
+  
+  // 再生状態変更時にアニメーションを開始/停止
+  watch(() => isPlaying.value, (playing) => {
+    if (playing) {
+      startTimeUpdate();
+    } else {
+      stopTimeUpdate();
+    }
+  }, { immediate: true });
   
   // クリーンアップ
   onBeforeUnmount(() => {
