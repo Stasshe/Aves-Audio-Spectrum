@@ -146,7 +146,7 @@ const drawBackground = () => {
       
     case 'image':
       // 画像背景
-      if (background.value.image) {
+      if (background.value) {
         try {
           // 画像を保持する変数が必要
           if (!background.value.image) {
