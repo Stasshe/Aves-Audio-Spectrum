@@ -151,7 +151,7 @@ const drawBackground = () => {
           // 画像を保持する変数が必要
           if (!background.value.image) {
             background.value.image = new Image();
-            background.value.image.src = background.image;
+            background.value.image.src = imagePreviewUrl.value;
             background.value.image.onload = () => {
               drawBackground(); // 画像読み込み完了時に再描画
             };

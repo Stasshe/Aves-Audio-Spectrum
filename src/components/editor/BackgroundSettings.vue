@@ -85,7 +85,7 @@
         </button>
         <p class="text-sm text-gray-500">またはドラッグ＆ドロップ</p>
       </div>
-      <div v-else class="relative">
+      <div v-else class="relative" v-if="imagePreviewUrl">
         <img 
           :src="imagePreviewUrl" 
           class="w-full h-32 object-cover rounded-lg" 
