@@ -69,7 +69,7 @@
     <!-- 画像背景の設定 -->
     <div v-if="background.type === 'image'" class="mb-4">
       <label class="block text-sm font-medium mb-2">背景画像</label>
-      <div v-if="!background.image" class="border-2 border-dashed border-gray-300 p-4 text-center rounded-lg">
+      <div v-if="!imagePreviewUrl" class="border-2 border-dashed border-gray-300 p-4 text-center rounded-lg">
         <input
           type="file"
           accept="image/*"
